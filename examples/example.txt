@@ -1,0 +1,3 @@
+Hello! This is a test file for the MCP demo.
+It demonstrates reading files through the file-reader tool.
+The tool should successfully read this content and return it.

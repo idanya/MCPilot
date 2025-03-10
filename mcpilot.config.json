@@ -1,0 +1,42 @@
+{
+  "providers": {
+    "openai": {
+      "model": "gpt-4",
+      "temperature": 0.7,
+      "maxTokens": 2048
+    },
+    "anthropic": {
+      "model": "claude-3-5-sonnet-latest",
+      "temperature": 0.7,
+      "maxTokens": 4096
+    }
+  },
+  "session": {
+    "logDirectory": "./sessions",
+    "contextSize": 4096,
+    "maxQueueSize": 100,
+    "defaultProvider": "anthropic"
+  },
+  "logging": {
+    "level": "debug",
+    "format": "json",
+    "file": "./logs/system.log",
+    "maxFiles": 5,
+    "maxSize": "10mb"
+  },
+  "mcp": {
+    "servers": {
+      "fs": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "/tmp/mcpilot"
+        ],
+        "enabled": true,
+        "timeout": 3600,
+        "type": "stdio"
+      }      
+    }
+  }
+}

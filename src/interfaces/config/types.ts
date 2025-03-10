@@ -1,0 +1,148 @@
+/**
+ * Configuration type definitions
+ */
+
+import { LogLevel } from "../base/session";
+import {
+  OpenAIConfig,
+  AnthropicConfig,
+  LocalConfig,
+} from "../../providers/provider-config";
+
+export type LogLevelStrings = keyof typeof LogLevel;
+
+export interface RoleConfig {
+  definition: string;
+  instructions: string;
+  constraints?: {
+    allowedCommands?: string[];
+    disallowedPaths?: string[];
+    maxContextSize?: number;
+  };
+}
+
+export interface RolesConfig {
+  roles: {
+    [key: string]: RoleConfig;
+  };
+  defaultRole?: string;
+}
+
+export interface MCPilotConfig {
+  providers: {
+    openai?: Omit<OpenAIConfig, "name" | "modelName"> & {
+      model: string;
+    };
+    anthropic?: Omit<AnthropicConfig, "name" | "modelName"> & {
+      model: string;
+    };
+    local?: Omit<LocalConfig, "name" | "modelName"> & {
+      model: string;
+    };
+    [key: string]:
+      | {
+          model: string;
+          [key: string]: any;
+        }
+      | undefined;
+  };
+  session: {
+    logDirectory?: string;
+    contextSize?: number;
+    maxQueueSize?: number;
+    defaultProvider: string;
+  };
+  logging: {
+    level: LogLevelStrings;
+    format: "json" | "text";
+    file?: string;
+    maxFiles?: number;
+    maxSize?: string;
+  };
+  mcp?: {
+    servers?: Record<string, {
+      command: string;
+      args?: string[];
+      env?: Record<string, string>;
+      disabled?: boolean;
+      timeout?: number;
+      alwaysAllow?: string[];
+      type?: "stdio" | "http";
+    }>;
+  };
+}
+
+export interface ConfigValidationResult {
+  isValid: boolean;
+  errors: ConfigValidationError[];
+}
+
+export interface ConfigValidationError {
+  path: string[];
+  message: string;
+  value?: any;
+}
+
+export const DEFAULT_CONFIG: MCPilotConfig = {
+  providers: {
+    openai: {
+      model: "gpt-4",
+    },
+  },
+  session: {
+    logDirectory: "./sessions",
+    contextSize: 4096,
+    maxQueueSize: 100,
+    defaultProvider: "openai",
+  },
+  logging: {
+    level: "INFO",
+    format: "json",
+    maxFiles: 5,
+    maxSize: "10mb",
+  },
+};
+
+export interface ConfigLoaderOptions {
+  configPath?: string;
+  env?: NodeJS.ProcessEnv;
+  overrides?: Partial<MCPilotConfig>;
+}
+
+export interface EnvironmentMapping {
+  [envVar: string]: {
+    path: string[];
+    transform?: (value: string) => any;
+  };
+}
+
+// Default environment variable mappings
+export const DEFAULT_ENV_MAPPINGS: EnvironmentMapping = {
+  OPENAI_API_KEY: {
+    path: ["providers", "openai", "apiKey"],
+  },
+  OPENAI_MODEL: {
+    path: ["providers", "openai", "model"],
+  },
+  ANTHROPIC_API_KEY: {
+    path: ["providers", "anthropic", "apiKey"],
+  },
+  ANTHROPIC_MODEL: {
+    path: ["providers", "anthropic", "model"],
+  },
+  MCPILOT_LOG_LEVEL: {
+    path: ["logging", "level"],
+    transform: (value: string) => value.toUpperCase(),
+  },
+  MCPILOT_LOG_FORMAT: {
+    path: ["logging", "format"],
+    transform: (value: string) => value.toLowerCase(),
+  },
+  MCPILOT_LOG_DIR: {
+    path: ["session", "logDirectory"],
+  },
+  MCPILOT_CONTEXT_SIZE: {
+    path: ["session", "contextSize"],
+    transform: (value: string) => parseInt(value, 10),
+  },
+};
