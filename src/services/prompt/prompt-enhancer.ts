@@ -7,7 +7,10 @@ import {
   buildToolUsageSection,
   buildToolUseGuidelinesSection,
   formatSection,
+  buildFileSystemRestrictionsSection,
+  buildFileSystemEnvironmentSection,
 } from "./prompts";
+import { listDirectoryContents } from "./utils";
 
 interface PromptSection {
   title: string;
@@ -18,9 +21,11 @@ export class SystemPromptEnhancer {
   private toolCatalog: ToolCatalogBuilder;
   private basePrompt: string = "";
   private sections: PromptSection[] = [];
+  private workingDirectory: string;
 
-  constructor(toolCatalog: ToolCatalogBuilder) {
+  constructor(toolCatalog: ToolCatalogBuilder, workingDirectory: string) {
     this.toolCatalog = toolCatalog;
+    this.workingDirectory = workingDirectory;
   }
 
   /**
@@ -40,8 +45,16 @@ export class SystemPromptEnhancer {
   /**
    * Build system prompt with tool documentation
    */
-  public buildSystemPrompt(): string {
+  public async buildSystemPrompt(): Promise<string> {
     const sections: string[] = [this.basePrompt];
+
+    // Add filesystem restrictions and environment
+    sections.push(buildFileSystemRestrictionsSection(this.workingDirectory));
+    sections.push(
+      buildFileSystemEnvironmentSection(
+        await listDirectoryContents(this.workingDirectory),
+      ),
+    );
 
     // Add custom sections
     for (const section of this.sections) {

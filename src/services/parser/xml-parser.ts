@@ -9,7 +9,8 @@ export interface XmlNode {
 
 export interface ParsedToolRequest {
   toolName: string;
-  parameters: Record<string, any>; // Changed to any to support nested structures
+  serverName: string;
+  arguments: Record<string, any>;
   raw: string;
 }
 
@@ -50,14 +51,40 @@ export class XmlParser {
     }
 
     const [, toolName, content] = toolMatch;
-    if (!this.isValidToolName(toolName)) {
-      throw new XmlParseError(`Invalid tool name: ${toolName}`);
+
+    if (toolName !== "use_mcp_tool") {
+      throw new XmlParseError("Only MCP tool requests are supported");
     }
 
-    const parameters = this.parseParameters(content);
-    const request = {
-      toolName,
-      parameters,
+    const params = this.parseParameters(content);
+
+    // Validate required parameters
+    if (!params.server_name) {
+      throw new XmlParseError("Missing server_name in tool request");
+    }
+    if (!params.tool_name) {
+      throw new XmlParseError("Missing tool_name in tool request");
+    }
+    if (!params.arguments) {
+      throw new XmlParseError("Missing arguments in tool request");
+    }
+
+    // Parse arguments as JSON if it's a string
+    let toolArguments: Record<string, any>;
+    if (typeof params.arguments === "string") {
+      try {
+        toolArguments = JSON.parse(params.arguments);
+      } catch (error) {
+        throw new XmlParseError("Invalid JSON in tool arguments");
+      }
+    } else {
+      toolArguments = params.arguments;
+    }
+
+    const request: ParsedToolRequest = {
+      toolName: params.tool_name,
+      serverName: params.server_name,
+      arguments: toolArguments,
       raw: text,
     };
 
@@ -149,48 +176,25 @@ export class XmlParser {
       throw new XmlParseError("Missing tool name");
     }
 
+    if (!request.serverName) {
+      throw new XmlParseError("Missing server_name in tool request");
+    }
+
+    if (!request.arguments || typeof request.arguments !== "object") {
+      throw new XmlParseError("Invalid or missing arguments in tool request");
+    }
+
+    // Validate server name format (allowing hyphen for server names)
+    if (!/^[a-z][a-z0-9-]*$/.test(request.serverName)) {
+      throw new XmlParseError(
+        `Invalid server name format: ${request.serverName}`,
+      );
+    }
+
+    // Validate tool name format
     if (!this.isValidToolName(request.toolName)) {
       throw new XmlParseError(`Invalid tool name format: ${request.toolName}`);
     }
-
-    if (!request.parameters || Object.keys(request.parameters).length === 0) {
-      throw new XmlParseError("No parameters found in tool request");
-    }
-
-    // Validate parameter names
-    for (const paramName of Object.keys(request.parameters)) {
-      if (!/^[a-z][a-z0-9_]*$/.test(paramName)) {
-        throw new XmlParseError(`Invalid parameter name: ${paramName}`);
-      }
-    }
-  }
-
-  /**
-   * Format tool request as XML
-   */
-  public formatToolRequest(
-    toolName: string,
-    parameters: Record<string, any>,
-  ): string {
-    const formatValue = (value: any): string => {
-      if (value === null || value === undefined) return "";
-      if (typeof value === "object") {
-        return (
-          "\n" +
-          Object.entries(value)
-            .map(([k, v]) => `<${k}>${formatValue(v)}</${k}>`)
-            .join("\n") +
-          "\n"
-        );
-      }
-      return String(value);
-    };
-
-    const paramXml = Object.entries(parameters)
-      .map(([name, value]) => `<${name}>${formatValue(value)}</${name}>`)
-      .join("\n");
-
-    return `<${toolName}>\n${paramXml}\n</${toolName}>`;
   }
 }
 

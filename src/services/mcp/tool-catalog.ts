@@ -5,6 +5,7 @@
 import { McpTool, ToolExample, ToolSchema } from "./types";
 
 export interface ToolDocumentation {
+  serverName: string;
   name: string;
   description: string;
   usage: string;
@@ -31,7 +32,10 @@ export class ToolCatalogBuilder {
 
     for (const tool of tools) {
       if (!this.catalog.tools[tool.name]) {
-        this.catalog.tools[tool.name] = this.buildToolDocumentation(tool);
+        this.catalog.tools[tool.name] = this.buildToolDocumentation(
+          serverName,
+          tool,
+        );
       }
     }
   }
@@ -39,11 +43,15 @@ export class ToolCatalogBuilder {
   /**
    * Build tool documentation in XML format
    */
-  private buildToolDocumentation(tool: McpTool): ToolDocumentation {
-    const examples = this.buildExamples(tool);
-    const usage = this.buildUsage(tool);
+  private buildToolDocumentation(
+    serverName: string,
+    tool: McpTool,
+  ): ToolDocumentation {
+    const examples = this.buildExamples(serverName, tool);
+    const usage = this.buildUsage(serverName, tool);
 
     return {
+      serverName,
       name: tool.name,
       description: tool.description || "",
       usage,
@@ -53,30 +61,34 @@ export class ToolCatalogBuilder {
   }
 
   /**
-   * Build XML-style usage documentation
+   * Build usage documentation with MCP format
    */
-  private buildUsage(tool: McpTool): string {
-    const paramLines = Object.entries(tool.inputSchema.properties || {})
-      .map(([name, prop]) => {
-        const required = tool.inputSchema.required?.includes(name)
-          ? " (required)"
-          : " (optional)";
-        return `<${name}>${prop.description || `${name} value`}</${name}>${required}`;
-      })
-      .join("\n");
+  private buildUsage(serverName: string, tool: McpTool): string {
+    const args: Record<string, string> = {};
+    Object.entries(tool.inputSchema.properties || {}).forEach(
+      ([name, prop]) => {
+        args[name] = prop.description || `${name} value`;
+      },
+    );
 
-    return `<${tool.name}>\n${paramLines}\n</${tool.name}>`;
+    return `<use_mcp_tool>
+<server_name>${serverName}</server_name>
+<tool_name>${tool.name}</tool_name>
+<arguments>
+${JSON.stringify(args, null, 2)}
+</arguments>
+</use_mcp_tool>`;
   }
 
   /**
    * Build example usages from tool examples
    */
-  private buildExamples(tool: McpTool): string[] {
+  private buildExamples(serverName: string, tool: McpTool): string[] {
     const examples: string[] = [];
 
     // Add default example if no examples provided
     if (!tool.examples || tool.examples.length === 0) {
-      const defaultExample = this.buildDefaultExample(tool);
+      const defaultExample = this.buildDefaultExample(serverName, tool);
       if (defaultExample) {
         examples.push(defaultExample);
       }
@@ -85,7 +97,7 @@ export class ToolCatalogBuilder {
 
     // Build examples from provided tool examples
     for (const example of tool.examples) {
-      const xmlExample = this.buildExampleXml(tool.name, example);
+      const xmlExample = this.buildExampleXml(serverName, tool.name, example);
       examples.push(xmlExample);
     }
 
@@ -93,33 +105,47 @@ export class ToolCatalogBuilder {
   }
 
   /**
-   * Build default example from schema
+   * Build default example with MCP format
    */
-  private buildDefaultExample(tool: McpTool): string | null {
+  private buildDefaultExample(
+    serverName: string,
+    tool: McpTool,
+  ): string | null {
     if (!tool.inputSchema.properties) return null;
 
-    const params = Object.entries(tool.inputSchema.properties)
-      .map(([name, prop]) => {
-        let value = this.getDefaultValue(prop);
-        return `<${name}>${value}</${name}>`;
-      })
-      .join("\n");
+    const args: Record<string, any> = {};
+    Object.entries(tool.inputSchema.properties).forEach(([name, prop]) => {
+      args[name] = this.getDefaultValue(prop);
+    });
 
-    return `<${tool.name}>\n${params}\n</${tool.name}>`;
+    return `<use_mcp_tool>
+<server_name>${serverName}</server_name>
+<tool_name>${tool.name}</tool_name>
+<arguments>
+${JSON.stringify(args, null, 2)}
+</arguments>
+</use_mcp_tool>`;
   }
 
   /**
-   * Build XML example from tool example
+   * Build MCP example from tool example
    */
-  private buildExampleXml(toolName: string, example: ToolExample): string {
-    const params = Object.entries(example.input)
-      .map(([name, value]) => `<${name}>${value}</${name}>`)
-      .join("\n");
-
+  private buildExampleXml(
+    serverName: string,
+    toolName: string,
+    example: ToolExample,
+  ): string {
     const description = example.description
       ? `// ${example.description}\n`
       : "";
-    return `${description}<${toolName}>\n${params}\n</${toolName}>`;
+
+    return `${description}<use_mcp_tool>
+<server_name>${serverName}</server_name>
+<tool_name>${toolName}</tool_name>
+<arguments>
+${JSON.stringify(example.input, null, 2)}
+</arguments>
+</use_mcp_tool>`;
   }
 
   /**

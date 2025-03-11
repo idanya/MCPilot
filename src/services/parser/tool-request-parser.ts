@@ -76,7 +76,7 @@ export class ToolRequestParser {
 
     // Validate parameters against schema
     const result = this.paramValidator.validate(
-      request.parameters,
+      request.arguments,
       toolInfo.schema,
     );
 

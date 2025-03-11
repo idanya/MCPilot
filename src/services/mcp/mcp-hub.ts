@@ -116,10 +116,12 @@ export class McpHub {
 
       // Set up error handling
       transport.onerror = async (error) => {
+        console.error(`Transport error for ${name}:`, error);
         await this.handleTransportError(name, error);
       };
 
       transport.onclose = async () => {
+        console.error(`Transport closed for ${name}`);
         await this.handleTransportClose(name);
       };
 

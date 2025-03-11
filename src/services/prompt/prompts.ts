@@ -25,8 +25,50 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.`;
 }
 
+export function buildFileSystemRestrictionsSection(
+  targetDirectory: string,
+): string {
+  return `# Filesystem Restrictions
+
+You are STRICTLY confined to operating within this directory: ${targetDirectory}
+
+- You cannot read, write, or access any files outside of this directory
+- You CAN access files in subdirectories of this directory
+- No matter what the user asks, you MUST NOT attempt to access files outside this directory
+- If asked to access files outside this directory, explain that you are restricted to ${targetDirectory}
+- This is a security measure that CANNOT be bypassed
+- When accessing files in the workspace, you must provide the full path to the file
+
+This restriction applies to all file operations including:
+- Reading files
+- Writing files
+- Creating new files
+- Searching files
+- Listing files`;
+}
+
+export function buildFileSystemEnvironmentSection(files: string[]): string {
+  return formatSection(
+    "Current Working Directory Files (relative to workspace root)",
+    files.map((file) => `- ${file}`).join("\n"),
+  );
+}
+
 export function buildToolUsageSection(): string {
-  const content = `Tools are invoked using XML-style tags. Each tool call should be formatted as:
+  const content = `Tools are invoked using XML-style tags. For MCP tools, format the request as:
+
+<use_mcp_tool>
+<server_name>Target server that will execute the tool</server_name>
+<tool_name>Name of the tool to execute</tool_name>
+<arguments>
+{
+  "parameterName": "parameterValue",
+  "anotherParam": 123
+}
+</arguments>
+</use_mcp_tool>
+
+For regular tools, format as:
 
 <tool_name>
 <parameter1_name>value1</parameter1_name>
@@ -34,11 +76,25 @@ export function buildToolUsageSection(): string {
 </tool_name>
 
 Only a single tool can be called in a single response. Parameters marked as (required) must be included.
+For MCP tools, all parameters must be specified in valid JSON format within the arguments tag.
 The following response will include the tool's output or any error messages.
-When executing a tool, make sure the tool execution data in the only data in the response. wait for the tool to finish executing before sending the next tool request. 
+When executing a tool, make sure the tool execution data is the only data in the response. Wait for the tool to finish executing before sending the next tool request.
 
+Examples:
 
-Example:
+MCP tool:
+<use_mcp_tool>
+<server_name>weather-server</server_name>
+<tool_name>get_forecast</tool_name>
+<arguments>
+{
+  "city": "San Francisco",
+  "days": 5
+}
+</arguments>
+</use_mcp_tool>
+
+Regular tool:
 <read_file>
 <path>example.txt</path>
 </read_file>`;

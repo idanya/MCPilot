@@ -42,8 +42,6 @@ export type ProviderCreator = (config: ProviderConfig) => ILLMProvider;
 export enum ProviderType {
   OPENAI = "openai",
   ANTHROPIC = "anthropic",
-  LOCAL = "local",
-  CUSTOM = "custom",
 }
 
 export type ITokenCounter = {

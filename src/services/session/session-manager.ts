@@ -59,6 +59,7 @@ export class SessionManager implements ISessionManager {
     this.toolRequestParser = new ToolRequestParser(this.mcpHub);
     this.promptEnhancer = new SystemPromptEnhancer(
       this.mcpHub.getToolCatalog(),
+      process.cwd(),
     );
 
     await this.#loadRoleConfiguration(); // Load roles on initialization
@@ -96,7 +97,8 @@ export class SessionManager implements ISessionManager {
         title: "Role Instructions",
         content: roleConfig.instructions,
       });
-      initialContext.systemPrompt = this.promptEnhancer.buildSystemPrompt();
+      initialContext.systemPrompt =
+        await this.promptEnhancer.buildSystemPrompt();
 
       if (initialContext.metadata) {
         initialContext.metadata.role = {
@@ -423,12 +425,10 @@ export class SessionManager implements ISessionManager {
       if (toolRequests.length > 0) {
         const request = toolRequests[0];
         try {
-          const { serverName, timeout } =
-            await this.toolRequestParser.routeRequest(request);
           const result = await this.mcpHub.callTool(
-            serverName,
+            request.serverName,
             request.toolName,
-            request.parameters,
+            request.arguments,
           );
 
           // Create tool message for the LLM
@@ -441,7 +441,7 @@ export class SessionManager implements ISessionManager {
               toolCalls: [
                 {
                   toolName: request.toolName,
-                  parameters: request.parameters,
+                  parameters: request.arguments,
                   timestamp: new Date(),
                   result: {
                     status: result.success
@@ -462,6 +462,7 @@ export class SessionManager implements ISessionManager {
           //   messages: [...context.messages, toolMessage],
           // });
         } catch (error) {
+          console.error("Tool call error:", error);
           throw error;
         }
       }
