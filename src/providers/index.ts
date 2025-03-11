@@ -21,11 +21,7 @@ export type {
   PluginConfigProperty,
 } from "../interfaces/llm/provider";
 
-export {
-  type ProviderType,
-  BaseProviderTypes,
-} from "../interfaces/llm/provider";
-
+export { ProviderType } from "../interfaces/llm/provider";
 // Export specific provider implementations
 export { OpenAIProvider } from "./implementations/openai-provider";
 export { AnthropicProvider } from "./implementations/anthropic-provider";

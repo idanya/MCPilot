@@ -2,7 +2,7 @@
  * Tool catalog builder for MCP integration
  */
 
-import { McpTool, ToolExample, ToolSchema } from "../../entities/mcp";
+import { McpTool, ToolExample, ToolSchema } from "./types";
 
 export interface ToolDocumentation {
   name: string;

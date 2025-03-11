@@ -18,7 +18,7 @@ import {
   McpToolCallResponse,
   McpToolOutput,
   ToolProperty,
-} from "../../entities/mcp";
+} from "./types";
 import { McpServerConfig, validateServerState } from "../config/mcp-schema";
 import { ToolCatalogBuilder } from "./tool-catalog";
 

@@ -4,6 +4,7 @@
 
 import { LogLevel } from "../base/session";
 import { OpenAIConfig, AnthropicConfig } from "../../providers/provider-config";
+import { McpServerConfig } from "../../services/config/mcp-schema";
 
 export type LogLevelStrings = keyof typeof LogLevel;
 
@@ -53,18 +54,7 @@ export interface MCPilotConfig {
     maxSize?: string;
   };
   mcp?: {
-    servers?: Record<
-      string,
-      {
-        command: string;
-        args?: string[];
-        env?: Record<string, string>;
-        disabled?: boolean;
-        timeout?: number;
-        alwaysAllow?: string[];
-        type?: "stdio" | "http";
-      }
-    >;
+    servers?: Record<string, McpServerConfig>;
   };
 }
 

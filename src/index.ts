@@ -43,7 +43,7 @@ export type {
   McpResource,
   McpServer,
   ConnectionStatus,
-} from "./entities/mcp";
+} from "./services/mcp/types";
 
 // Configuration types
 export type {

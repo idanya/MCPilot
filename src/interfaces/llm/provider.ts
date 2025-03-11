@@ -39,17 +39,12 @@ export type IProviderFactory = {
 
 export type ProviderCreator = (config: ProviderConfig) => ILLMProvider;
 
-const BaseProviderTypes = {
-  OPENAI: "openai",
-  ANTHROPIC: "anthropic",
-  LOCAL: "local",
-  CUSTOM: "custom",
-} as const;
-
-type ProviderType = (typeof BaseProviderTypes)[keyof typeof BaseProviderTypes];
-
-// Single export statement for both
-export { BaseProviderTypes, type ProviderType };
+export enum ProviderType {
+  OPENAI = "openai",
+  ANTHROPIC = "anthropic",
+  LOCAL = "local",
+  CUSTOM = "custom",
+}
 
 export type ITokenCounter = {
   countTokens(text: string): number;

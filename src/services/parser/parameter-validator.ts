@@ -2,7 +2,7 @@
  * Parameter validator for tool requests
  */
 
-import { ToolSchema, ToolProperty, ToolSchemaItems } from "../../entities/mcp";
+import { ToolSchema, ToolProperty, ToolSchemaItems } from "../mcp/types";
 
 export interface ValidationResult {
   isValid: boolean;

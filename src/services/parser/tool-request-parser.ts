@@ -1,7 +1,7 @@
 import { XmlParser, ParsedToolRequest } from "./xml-parser";
 import { ParameterValidator, ValidationResult } from "./parameter-validator";
-import { McpHub } from "../mcp/McpHub";
-import { ToolSchema } from "../../entities/mcp";
+import { McpHub } from "../mcp/mcp-hub";
+import { ToolSchema } from "../mcp/types";
 
 interface ServerHealth {
   name: string;

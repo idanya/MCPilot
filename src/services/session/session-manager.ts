@@ -21,10 +21,11 @@ import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types";
 import { ILLMProvider } from "../../interfaces/llm/provider";
 import { RoleConfigLoader } from "../config/role-config-loader";
-import { McpHub } from "../mcp/McpHub";
+import { McpHub } from "../mcp/mcp-hub";
 import { ToolRequestParser } from "../parser/tool-request-parser";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer";
 import { ContextManager } from "./context-manager";
+import { McpServerConfig } from "../config/mcp-schema";
 
 export class SessionManager implements ISessionManager {
   private currentSession: Session | null = null;
@@ -48,34 +49,7 @@ export class SessionManager implements ISessionManager {
   }
 
   async #createMcpHub(): Promise<void> {
-    const mcpServers = Object.entries(this.config.mcp?.servers || {}).reduce(
-      (acc, [key, server]) => {
-        acc[key] = {
-          command: server.command,
-          type: server.type || "stdio",
-          disabled: server.disabled || false,
-          timeout: server.timeout || 60,
-          alwaysAllow: server.alwaysAllow || [],
-          args: server.args,
-          env: server.env,
-        };
-        return acc;
-      },
-      {} as Record<
-        string,
-        {
-          command: string;
-          type: "stdio" | "http";
-          disabled: boolean;
-          timeout: number;
-          alwaysAllow: string[];
-          args?: string[];
-          env?: Record<string, string>;
-        }
-      >,
-    );
-
-    this.mcpHub = new McpHub(mcpServers);
+    this.mcpHub = new McpHub(this.config.mcp?.servers || {});
     await this.mcpHub.initializeMcpServers();
   }
 
