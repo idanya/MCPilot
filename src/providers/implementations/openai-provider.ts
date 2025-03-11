@@ -5,24 +5,17 @@
 import axios, { AxiosInstance } from "axios";
 import { BaseLLMProvider } from "../base-provider";
 import { Context } from "../../interfaces/base/context";
-import { Response } from "../../interfaces/base/response";
+import { Response, ResponseType } from "../../interfaces/base/response";
+import { Message, MessageType } from "../../interfaces/base/message";
 import { ProviderConfig } from "../../interfaces/llm/provider";
 import { MCPilotError, ErrorSeverity } from "../../interfaces/error/types";
-import {
-  OpenAIMessage,
-  OpenAICompletion,
-  OpenAIFunction,
-  OpenAIError,
-  OpenAIRequestMessage,
-} from "./openai/types";
+import { OpenAIMessage, OpenAICompletion, OpenAIError } from "./openai/types";
 
 export class OpenAIProvider extends BaseLLMProvider {
   private apiClient: AxiosInstance;
-  private functions: OpenAIFunction[];
 
   constructor(config: ProviderConfig) {
     super(config);
-    this.functions = [];
     this.apiClient = axios.create({
       baseURL: this.config.apiEndpoint || "https://api.openai.com/v1",
       headers: {
@@ -33,23 +26,61 @@ export class OpenAIProvider extends BaseLLMProvider {
   }
 
   protected async initializeProvider(): Promise<void> {
-    // Implementation will initialize OpenAI-specific setup
-    throw new Error("Not implemented");
+    if (!this.config.apiKey) {
+      throw new MCPilotError(
+        "OpenAI API key is required",
+        "CONFIG_ERROR",
+        ErrorSeverity.HIGH,
+      );
+    }
   }
 
   protected async shutdownProvider(): Promise<void> {
-    // Implementation will handle any necessary cleanup
-    throw new Error("Not implemented");
+    // No specific cleanup needed for OpenAI
   }
 
-  protected async sendRequest(context: Context): Promise<any> {
-    // Implementation will handle OpenAI API requests
-    throw new Error("Not implemented");
+  protected async sendRequest(context: Context): Promise<OpenAICompletion> {
+    const messages = this.formatMessages(context);
+    try {
+      const response = await this.apiClient.post("/chat/completions", {
+        model: this.config.modelName,
+        messages,
+        max_tokens: this.config.maxTokens || this.getDefaultMaxTokens(),
+        temperature: this.config.temperature ?? this.getDefaultTemperature(),
+        stream: this.config.options?.streaming || false,
+      });
+      return response.data as OpenAICompletion;
+    } catch (error) {
+      throw this.handleOpenAIError(error);
+    }
   }
 
-  protected async parseResponse(response: any): Promise<Response> {
-    // Implementation will parse OpenAI responses into standard format
-    throw new Error("Not implemented");
+  protected async parseResponse(response: OpenAICompletion): Promise<Response> {
+    const choice = response.choices[0];
+    if (!choice) {
+      throw new MCPilotError(
+        "No completion choices returned",
+        "PROVIDER_ERROR",
+        ErrorSeverity.HIGH,
+      );
+    }
+
+    return {
+      id: response.id,
+      type: ResponseType.TEXT,
+      content: {
+        text: choice.message.content || "",
+      },
+      metadata: {
+        model: response.model,
+        tokens: {
+          prompt: response.usage.prompt_tokens,
+          completion: response.usage.completion_tokens,
+          total: response.usage.total_tokens,
+        },
+      },
+      timestamp: new Date(),
+    };
   }
 
   protected getDefaultEndpoint(): string {
@@ -67,14 +98,36 @@ export class OpenAIProvider extends BaseLLMProvider {
   protected getDefaultOptions(): Record<string, any> {
     return {
       streaming: false,
-      functions: this.functions,
-      function_call: "auto",
     };
   }
 
-  private formatMessages(context: Context): OpenAIRequestMessage[] {
-    // Implementation will format context messages for OpenAI
-    throw new Error("Not implemented");
+  private formatMessages(context: Context): OpenAIMessage[] {
+    const messages: OpenAIMessage[] = [];
+
+    if (context.systemPrompt) {
+      messages.push({
+        role: "system",
+        content: context.systemPrompt,
+      });
+    }
+
+    return messages.concat(
+      context.messages.map((message) => ({
+        role: (() => {
+          switch (message.type) {
+            case MessageType.SYSTEM:
+              return "system";
+            case MessageType.USER:
+              return "user";
+            case MessageType.ASSISTANT:
+              return "assistant";
+            default:
+              return "user";
+          }
+        })(),
+        content: message.content,
+      })),
+    );
   }
 
   private handleOpenAIError(error: any): MCPilotError {
@@ -83,7 +136,7 @@ export class OpenAIProvider extends BaseLLMProvider {
       openAIError?.error?.message || "Unknown OpenAI error",
       "OPENAI_API_ERROR",
       ErrorSeverity.HIGH,
-      { originalError: error }
+      { originalError: error },
     );
   }
 }

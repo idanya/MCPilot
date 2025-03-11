@@ -9,24 +9,27 @@ export interface ValidationResult {
   errors: ValidationError[];
 }
 
-export interface ValidationError {
+interface ValidationError {
   parameter: string;
   message: string;
   code: ValidationErrorCode;
 }
 
 export enum ValidationErrorCode {
-  MISSING_REQUIRED = 'MISSING_REQUIRED',
-  INVALID_TYPE = 'INVALID_TYPE',
-  OUT_OF_RANGE = 'OUT_OF_RANGE',
-  PATTERN_MISMATCH = 'PATTERN_MISMATCH',
-  UNKNOWN_PARAMETER = 'UNKNOWN_PARAMETER',
-  ENUM_MISMATCH = 'ENUM_MISMATCH',
-  INVALID_ARRAY_ITEMS = 'INVALID_ARRAY_ITEMS',
-  CUSTOM_VALIDATION_FAILED = 'CUSTOM_VALIDATION_FAILED'
+  MISSING_REQUIRED = "MISSING_REQUIRED",
+  INVALID_TYPE = "INVALID_TYPE",
+  OUT_OF_RANGE = "OUT_OF_RANGE",
+  PATTERN_MISMATCH = "PATTERN_MISMATCH",
+  UNKNOWN_PARAMETER = "UNKNOWN_PARAMETER",
+  ENUM_MISMATCH = "ENUM_MISMATCH",
+  INVALID_ARRAY_ITEMS = "INVALID_ARRAY_ITEMS",
+  CUSTOM_VALIDATION_FAILED = "CUSTOM_VALIDATION_FAILED",
 }
 
-export type CustomValidator = (value: any, schema: ToolProperty) => ValidationError | null;
+type CustomValidator = (
+  value: any,
+  schema: ToolProperty,
+) => ValidationError | null;
 
 export class ParameterValidator {
   private customValidators: CustomValidator[] = [];
@@ -43,7 +46,7 @@ export class ParameterValidator {
    */
   public validate(
     parameters: Record<string, string>,
-    schema: ToolSchema
+    schema: ToolSchema,
   ): ValidationResult {
     const errors: ValidationError[] = [];
 
@@ -55,7 +58,7 @@ export class ParameterValidator {
 
     return {
       isValid: errors.length === 0,
-      errors
+      errors,
     };
   }
 
@@ -65,7 +68,7 @@ export class ParameterValidator {
   private validateRequired(
     parameters: Record<string, string>,
     schema: ToolSchema,
-    errors: ValidationError[]
+    errors: ValidationError[],
   ): void {
     if (!schema.required) return;
 
@@ -74,7 +77,7 @@ export class ParameterValidator {
         errors.push({
           parameter: required,
           message: `Missing required parameter: ${required}`,
-          code: ValidationErrorCode.MISSING_REQUIRED
+          code: ValidationErrorCode.MISSING_REQUIRED,
         });
       }
     }
@@ -86,17 +89,17 @@ export class ParameterValidator {
   private validateParameters(
     parameters: Record<string, string>,
     schema: ToolSchema,
-    errors: ValidationError[]
+    errors: ValidationError[],
   ): void {
     for (const [name, value] of Object.entries(parameters)) {
       const property = schema.properties?.[name];
-      
+
       // Check if parameter is defined in schema
       if (!property && !schema.additionalProperties) {
         errors.push({
           parameter: name,
           message: `Unknown parameter: ${name}`,
-          code: ValidationErrorCode.UNKNOWN_PARAMETER
+          code: ValidationErrorCode.UNKNOWN_PARAMETER,
         });
         continue;
       }
@@ -115,45 +118,45 @@ export class ParameterValidator {
     value: string,
     property: ToolProperty,
     schema: ToolSchema,
-    errors: ValidationError[]
+    errors: ValidationError[],
   ): void {
     // Basic type validation
     if (!this.validateType(value, property.type)) {
       errors.push({
         parameter: name,
         message: `Invalid type for ${name}: expected ${property.type}`,
-        code: ValidationErrorCode.INVALID_TYPE
+        code: ValidationErrorCode.INVALID_TYPE,
       });
       return; // Skip further validation if type is invalid
     }
 
     // Validate number constraints
-    if (property.type === 'number') {
+    if (property.type === "number") {
       const numValue = Number(value);
       if (property.minimum !== undefined && numValue < property.minimum) {
         errors.push({
           parameter: name,
           message: `Value ${value} is below minimum ${property.minimum}`,
-          code: ValidationErrorCode.OUT_OF_RANGE
+          code: ValidationErrorCode.OUT_OF_RANGE,
         });
       }
       if (property.maximum !== undefined && numValue > property.maximum) {
         errors.push({
           parameter: name,
           message: `Value ${value} exceeds maximum ${property.maximum}`,
-          code: ValidationErrorCode.OUT_OF_RANGE
+          code: ValidationErrorCode.OUT_OF_RANGE,
         });
       }
     }
 
     // Validate string pattern
-    if (property.type === 'string' && property.pattern) {
+    if (property.type === "string" && property.pattern) {
       const regex = new RegExp(property.pattern);
       if (!regex.test(value)) {
         errors.push({
           parameter: name,
           message: `Value does not match pattern: ${property.pattern}`,
-          code: ValidationErrorCode.PATTERN_MISMATCH
+          code: ValidationErrorCode.PATTERN_MISMATCH,
         });
       }
     }
@@ -164,14 +167,14 @@ export class ParameterValidator {
       if (!property.enum.includes(parsedValue)) {
         errors.push({
           parameter: name,
-          message: `Value must be one of: ${property.enum.join(', ')}`,
-          code: ValidationErrorCode.ENUM_MISMATCH
+          message: `Value must be one of: ${property.enum.join(", ")}`,
+          code: ValidationErrorCode.ENUM_MISMATCH,
         });
       }
     }
 
     // Validate array items
-    if (property.type === 'array' && schema.items) {
+    if (property.type === "array" && schema.items) {
       try {
         const arrayValue = JSON.parse(value);
         if (Array.isArray(arrayValue)) {
@@ -188,7 +191,7 @@ export class ParameterValidator {
       if (error) {
         errors.push({
           ...error,
-          parameter: name
+          parameter: name,
         });
       }
     }
@@ -201,32 +204,32 @@ export class ParameterValidator {
     paramName: string,
     items: any[],
     schema: ToolSchemaItems,
-    errors: ValidationError[]
+    errors: ValidationError[],
   ): void {
     items.forEach((item, index) => {
       if (typeof item !== schema.type) {
         errors.push({
           parameter: `${paramName}[${index}]`,
           message: `Invalid type for array item: expected ${schema.type}`,
-          code: ValidationErrorCode.INVALID_ARRAY_ITEMS
+          code: ValidationErrorCode.INVALID_ARRAY_ITEMS,
         });
         return;
       }
 
-      if (schema.properties && typeof item === 'object') {
+      if (schema.properties && typeof item === "object") {
         // Validate nested object properties
         Object.entries(schema.properties).forEach(([propName, propSchema]) => {
           if (item[propName] === undefined) return;
           const arraySchema: ToolSchema = {
             type: schema.type,
-            properties: schema.properties
+            properties: schema.properties,
           };
           this.validateValue(
             `${paramName}[${index}].${propName}`,
             String(item[propName]),
             propSchema,
             arraySchema,
-            errors
+            errors,
           );
         });
       }
@@ -238,23 +241,23 @@ export class ParameterValidator {
    */
   private validateType(value: string, type: string): boolean {
     switch (type) {
-      case 'string':
+      case "string":
         return true; // All values are strings from XML parser
-      case 'number':
+      case "number":
         return !isNaN(Number(value));
-      case 'boolean':
-        return value === 'true' || value === 'false';
-      case 'array':
+      case "boolean":
+        return value === "true" || value === "false";
+      case "array":
         try {
           const parsed = JSON.parse(value);
           return Array.isArray(parsed);
         } catch {
           return false;
         }
-      case 'object':
+      case "object":
         try {
           const parsed = JSON.parse(value);
-          return typeof parsed === 'object' && parsed !== null;
+          return typeof parsed === "object" && parsed !== null;
         } catch {
           return false;
         }
@@ -268,12 +271,12 @@ export class ParameterValidator {
    */
   private parseValue(value: string, type: string): any {
     switch (type) {
-      case 'number':
+      case "number":
         return Number(value);
-      case 'boolean':
-        return value === 'true';
-      case 'array':
-      case 'object':
+      case "boolean":
+        return value === "true";
+      case "array":
+      case "object":
         try {
           return JSON.parse(value);
         } catch {
@@ -289,7 +292,7 @@ export class ParameterValidator {
    */
   public coerceValues(
     parameters: Record<string, string>,
-    schema: ToolSchema
+    schema: ToolSchema,
   ): Record<string, any> {
     const result: Record<string, any> = {};
 
@@ -309,25 +312,29 @@ export class ParameterValidator {
   /**
    * Coerce a single value based on schema
    */
-  private coerceValue(value: string, property: ToolProperty, schema?: ToolSchema): any {
+  private coerceValue(
+    value: string,
+    property: ToolProperty,
+    schema?: ToolSchema,
+  ): any {
     switch (property.type) {
-      case 'number':
+      case "number":
         return Number(value);
-      case 'boolean':
-        return value === 'true';
-      case 'array':
+      case "boolean":
+        return value === "true";
+      case "array":
         try {
           const array = JSON.parse(value);
           if (!Array.isArray(array)) return value;
-          
+
           // Coerce array items if schema exists
           const itemSchema = schema?.items;
           if (!itemSchema) {
             return array;
           }
 
-          return array.map(item => {
-            if (itemSchema.type === 'object' && itemSchema.properties) {
+          return array.map((item) => {
+            if (itemSchema.type === "object" && itemSchema.properties) {
               // Coerce nested object properties
               const result: Record<string, any> = {};
               for (const [key, val] of Object.entries(item)) {
@@ -346,11 +353,11 @@ export class ParameterValidator {
         } catch {
           return value;
         }
-      case 'object':
+      case "object":
         try {
           const obj = JSON.parse(value);
-          if (typeof obj !== 'object' || obj === null) return value;
-          
+          if (typeof obj !== "object" || obj === null) return value;
+
           // Coerce object properties if schema exists
           if (schema?.properties) {
             const result: Record<string, any> = {};

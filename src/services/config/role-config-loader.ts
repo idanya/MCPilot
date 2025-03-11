@@ -8,7 +8,7 @@ import { RoleConfig, RolesConfig } from "../../interfaces/config/types";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types";
 import { validateRolesConfig } from "./role-schema";
 
-export interface RoleConfigLoaderOptions {
+interface RoleConfigLoaderOptions {
   configPath?: string;
 }
 
@@ -43,7 +43,7 @@ export class RoleConfigLoader {
         "Failed to load role configuration",
         "ROLE_CONFIG_LOAD_ERROR",
         ErrorSeverity.HIGH,
-        { error }
+        { error },
       );
     }
   }
@@ -77,7 +77,7 @@ export class RoleConfigLoader {
           {
             filePath,
             errors: validationResult.error.issues,
-          }
+          },
         );
       }
 
@@ -90,7 +90,7 @@ export class RoleConfigLoader {
         "Failed to load role config file",
         "ROLE_CONFIG_FILE_ERROR",
         ErrorSeverity.HIGH,
-        { filePath, error }
+        { filePath, error },
       );
     }
   }

@@ -4,31 +4,28 @@
 
 import { Command } from "commander";
 import { readFile } from "fs/promises";
-import { join, dirname } from "path";
+import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(
-  await readFile(join(__dirname, "../../package.json"), "utf-8")
-);
-const version = pkg.version;
-import { LogLevel } from "../interfaces/base/session";
+import { MCPilotConfig } from "../interfaces/config/types";
 import { ErrorSeverity, MCPilotError } from "../interfaces/error/types";
 import {
   AnthropicConfig,
   AnthropicProvider,
   BaseProviderTypes,
   ILLMProvider,
-  LocalConfig,
-  LocalProvider,
   OpenAIConfig,
   OpenAIProvider,
   ProviderFactory,
   ProviderType,
 } from "../providers/index";
 import { ConfigLoader } from "../services/config/config-loader";
-import { LogManager, SessionManager } from "../services/session/index";
-import { MCPilotConfig } from "../interfaces/config/types";
+import { SessionManager } from "../services/session/index";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(
+  await readFile(join(__dirname, "../../package.json"), "utf-8"),
+);
+const version = pkg.version;
 
 class MCPilotCLI {
   private program: Command;
@@ -43,15 +40,11 @@ class MCPilotCLI {
     // Register built-in providers
     this.providerFactory.register(
       BaseProviderTypes.OPENAI,
-      (config) => new OpenAIProvider(config as OpenAIConfig)
+      (config) => new OpenAIProvider(config as OpenAIConfig),
     );
     this.providerFactory.register(
       BaseProviderTypes.ANTHROPIC,
-      (config) => new AnthropicProvider(config as AnthropicConfig)
-    );
-    this.providerFactory.register(
-      BaseProviderTypes.LOCAL,
-      (config) => new LocalProvider(config as LocalConfig)
+      (config) => new AnthropicProvider(config as AnthropicConfig),
     );
 
     if (autoSetup) {
@@ -73,20 +66,20 @@ class MCPilotCLI {
       .option(
         "-l, --log-level <level>",
         "Log level (debug|info|warn|error)",
-        "info"
+        "info",
       )
       .option(
         "-c, --config <path>",
         "Path to config file",
-        "./mcpilot.config.json"
+        "./mcpilot.config.json",
       )
       .option("-r, --role <name>", "Role to use for the session")
       .option(
         "--roles-config <path>",
         "Path to roles configuration file",
-        ".mcpilot-roles.json"
+        ".mcpilot-roles.json",
       )
-      .action(this.handleStart.bind(this));
+      .action(this.#handleStart.bind(this));
 
     this.program
       .command("resume")
@@ -96,9 +89,9 @@ class MCPilotCLI {
       .action(this.handleResume.bind(this));
   }
 
-  private async createProvider(
+  async #createProvider(
     config: MCPilotConfig,
-    options: any
+    options: any,
   ): Promise<ILLMProvider> {
     // Get the provider configuration
     const providerName = config.session.defaultProvider;
@@ -108,7 +101,7 @@ class MCPilotCLI {
       throw new MCPilotError(
         `Provider '${providerName}' not found in providers configuration`,
         "INVALID_PROVIDER",
-        ErrorSeverity.HIGH
+        ErrorSeverity.HIGH,
       );
     }
 
@@ -121,14 +114,14 @@ class MCPilotCLI {
 
     const provider = this.providerFactory.create(
       providerName as ProviderType,
-      pConfig
+      pConfig,
     );
 
     provider.initialize(pConfig);
     return provider;
   }
 
-  private async createConfig(options: any): Promise<MCPilotConfig> {
+  async #createConfig(options: any): Promise<MCPilotConfig> {
     // Load configuration
     const configLoader = new ConfigLoader({
       configPath: options.config,
@@ -138,25 +131,16 @@ class MCPilotCLI {
     return configLoader.load();
   }
 
-  private async handleStart(instruction: string, options: any): Promise<void> {
+  async #handleStart(instruction: string, options: any): Promise<void> {
     try {
-      const config = await this.createConfig(options);
-      const logManager = new LogManager(
-        config.session.logDirectory || "./logs"
-      );
+      const config = await this.#createConfig(options);
+
       // Initialize session manager with config and roles
       this.sessionManager = new SessionManager(
         config,
-        await this.createProvider(config, options),
-        logManager,
+        await this.#createProvider(config, options),
         options.rolesConfig,
-        options.role
-      );
-
-      // Set log level from CLI option or config
-      const logLevel = options.logLevel || config.logging?.level || "info";
-      this.sessionManager.setLogLevel(
-        LogLevel[logLevel.toUpperCase() as keyof typeof LogLevel]
+        options.role,
       );
 
       await this.sessionManager.createSession();
@@ -170,19 +154,15 @@ class MCPilotCLI {
   private async handleResume(
     logPath: string,
     instruction: string,
-    options: any
+    options: any,
   ): Promise<void> {
     try {
       if (!this.sessionManager) {
-        const config = await this.createConfig(options);
-        const logManager = new LogManager(
-          config.session.logDirectory || "./logs"
-        );
+        const config = await this.#createConfig(options);
         this.sessionManager = new SessionManager(
           config,
-          await this.createProvider(config, options),
-          logManager,
-          options.rolesConfig
+          await this.#createProvider(config, options),
+          options.rolesConfig,
         );
       }
 
@@ -201,12 +181,11 @@ class MCPilotCLI {
         throw new MCPilotError(
           "No active session",
           "NO_SESSION",
-          ErrorSeverity.HIGH
+          ErrorSeverity.HIGH,
         );
       }
 
       await this.sessionManager.executeMessage(message);
-      
     } catch (error) {
       this.handleError(error);
     }

@@ -7,8 +7,8 @@ import {
   LogLevel,
   ProviderType,
   createProviderFactory
-} from "../src/index.js";
-import { AnthropicProvider } from "../src/providers/implementations/anthropic-provider.js";
+} from "../src/index";
+import { AnthropicProvider } from "../src/providers/implementations/anthropic-provider";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath, pathToFileURL } from "url";

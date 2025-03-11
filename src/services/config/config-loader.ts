@@ -46,7 +46,7 @@ export class ConfigLoader {
           "Invalid configuration",
           "CONFIG_VALIDATION_ERROR",
           ErrorSeverity.HIGH,
-          { errors: validationResult.error.issues }
+          { errors: validationResult.error.issues },
         );
       }
 
@@ -59,7 +59,7 @@ export class ConfigLoader {
         "Failed to load configuration",
         "CONFIG_LOAD_ERROR",
         ErrorSeverity.CRITICAL,
-        { error }
+        { error },
       );
     }
   }
@@ -87,7 +87,7 @@ export class ConfigLoader {
           {
             filePath,
             errors: validationResult.error.issues,
-          }
+          },
         );
       }
 
@@ -97,7 +97,7 @@ export class ConfigLoader {
         "Failed to load config file",
         "CONFIG_FILE_ERROR",
         ErrorSeverity.HIGH,
-        { filePath, error }
+        { filePath, error },
       );
     }
   }

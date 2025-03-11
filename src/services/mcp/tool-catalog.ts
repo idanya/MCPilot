@@ -2,7 +2,7 @@
  * Tool catalog builder for MCP integration
  */
 
-import { McpConfig, McpTool, ToolSchema, ToolExample } from "../../entities/mcp";
+import { McpTool, ToolExample, ToolSchema } from "../../entities/mcp";
 
 export interface ToolDocumentation {
   name: string;
@@ -12,7 +12,7 @@ export interface ToolDocumentation {
   schema: ToolSchema;
 }
 
-export interface ToolCatalog {
+interface ToolCatalog {
   tools: Record<string, ToolDocumentation>;
   servers: Record<string, string[]>; // server -> tool names mapping
 }
@@ -20,15 +20,15 @@ export interface ToolCatalog {
 export class ToolCatalogBuilder {
   private catalog: ToolCatalog = {
     tools: {},
-    servers: {}
+    servers: {},
   };
 
   /**
    * Register tools from a server
    */
   public registerServerTools(serverName: string, tools: McpTool[]): void {
-    this.catalog.servers[serverName] = tools.map(tool => tool.name);
-    
+    this.catalog.servers[serverName] = tools.map((tool) => tool.name);
+
     for (const tool of tools) {
       if (!this.catalog.tools[tool.name]) {
         this.catalog.tools[tool.name] = this.buildToolDocumentation(tool);
@@ -45,10 +45,10 @@ export class ToolCatalogBuilder {
 
     return {
       name: tool.name,
-      description: tool.description || '',
+      description: tool.description || "",
       usage,
       examples,
-      schema: tool.inputSchema
+      schema: tool.inputSchema,
     };
   }
 
@@ -58,10 +58,12 @@ export class ToolCatalogBuilder {
   private buildUsage(tool: McpTool): string {
     const paramLines = Object.entries(tool.inputSchema.properties || {})
       .map(([name, prop]) => {
-        const required = tool.inputSchema.required?.includes(name) ? ' (required)' : ' (optional)';
+        const required = tool.inputSchema.required?.includes(name)
+          ? " (required)"
+          : " (optional)";
         return `<${name}>${prop.description || `${name} value`}</${name}>${required}`;
       })
-      .join('\n');
+      .join("\n");
 
     return `<${tool.name}>\n${paramLines}\n</${tool.name}>`;
   }
@@ -101,7 +103,7 @@ export class ToolCatalogBuilder {
         let value = this.getDefaultValue(prop);
         return `<${name}>${value}</${name}>`;
       })
-      .join('\n');
+      .join("\n");
 
     return `<${tool.name}>\n${params}\n</${tool.name}>`;
   }
@@ -112,9 +114,11 @@ export class ToolCatalogBuilder {
   private buildExampleXml(toolName: string, example: ToolExample): string {
     const params = Object.entries(example.input)
       .map(([name, value]) => `<${name}>${value}</${name}>`)
-      .join('\n');
+      .join("\n");
 
-    const description = example.description ? `// ${example.description}\n` : '';
+    const description = example.description
+      ? `// ${example.description}\n`
+      : "";
     return `${description}<${toolName}>\n${params}\n</${toolName}>`;
   }
 
@@ -123,20 +127,20 @@ export class ToolCatalogBuilder {
    */
   private getDefaultValue(prop: any): string {
     if (prop.default !== undefined) return String(prop.default);
-    
+
     switch (prop.type) {
-      case 'string':
-        return prop.example || 'example_string';
-      case 'number':
-        return prop.example || '0';
-      case 'boolean':
-        return prop.example || 'false';
-      case 'array':
-        return prop.example || '[]';
-      case 'object':
-        return prop.example || '{}';
+      case "string":
+        return prop.example || "example_string";
+      case "number":
+        return prop.example || "0";
+      case "boolean":
+        return prop.example || "false";
+      case "array":
+        return prop.example || "[]";
+      case "object":
+        return prop.example || "{}";
       default:
-        return 'value';
+        return "value";
     }
   }
 
@@ -181,7 +185,7 @@ export class ToolCatalogBuilder {
   public clear(): void {
     this.catalog = {
       tools: {},
-      servers: {}
+      servers: {},
     };
   }
 }

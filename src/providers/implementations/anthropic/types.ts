@@ -2,39 +2,39 @@
  * Anthropic provider specific types
  */
 
-import { Message } from '../../../interfaces/base/message';
+import { Message } from "../../../interfaces/base/message";
 
-export type AnthropicMessageRole = 'user' | 'assistant' | 'system';
+export type AnthropicMessageRole = "user" | "assistant" | "system";
 
 export interface AnthropicMessage {
-    role: AnthropicMessageRole;
-    content: string;
+  role: AnthropicMessageRole;
+  content: string;
 }
 
 export interface AnthropicResponse {
-    id: string;
-    content: Array<{
-        text: string;
-    }>;
-    model: string;
-    usage: {
-        input_tokens: number;
-        output_tokens: number;
-    };
+  id: string;
+  content: Array<{
+    text: string;
+  }>;
+  model: string;
+  usage: {
+    input_tokens: number;
+    output_tokens: number;
+  };
 }
 
 export interface AnthropicError {
-    error: {
-        type: string;
-        message: string;
-    };
+  error: {
+    type: string;
+    message: string;
+  };
 }
 
 export interface AnthropicRequestOptions {
-    model: string;
-    messages: AnthropicMessage[];
-    max_tokens: number;
-    temperature?: number;
-    system?: string;
-    stream?: boolean;
+  model: string;
+  messages: AnthropicMessage[];
+  max_tokens: number;
+  temperature?: number;
+  system?: string;
+  stream?: boolean;
 }

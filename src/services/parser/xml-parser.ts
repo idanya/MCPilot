@@ -170,7 +170,7 @@ export class XmlParser {
    */
   public formatToolRequest(
     toolName: string,
-    parameters: Record<string, any>
+    parameters: Record<string, any>,
   ): string {
     const formatValue = (value: any): string => {
       if (value === null || value === undefined) return "";

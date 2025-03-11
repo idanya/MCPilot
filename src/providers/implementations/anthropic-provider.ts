@@ -36,7 +36,7 @@ export class AnthropicProvider extends BaseLLMProvider {
       throw new MCPilotError(
         "Anthropic API key is required",
         "CONFIG_ERROR",
-        ErrorSeverity.HIGH
+        ErrorSeverity.HIGH,
       );
     }
   }
@@ -56,7 +56,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   }
 
   protected async parseResponse(
-    response: AnthropicResponse
+    response: AnthropicResponse,
   ): Promise<Response> {
     return {
       id: response.id,
@@ -136,7 +136,7 @@ export class AnthropicProvider extends BaseLLMProvider {
       anthropicError?.error?.message || "Unknown Anthropic error",
       "ANTHROPIC_API_ERROR",
       ErrorSeverity.HIGH,
-      { originalError: error }
+      { originalError: error },
     );
   }
 }

@@ -3,14 +3,14 @@ import { ParameterValidator, ValidationResult } from "./parameter-validator";
 import { McpHub } from "../mcp/McpHub";
 import { ToolSchema } from "../../entities/mcp";
 
-export interface ServerHealth {
+interface ServerHealth {
   name: string;
   status: "healthy" | "degraded" | "unhealthy";
   lastCheck: Date;
   responseTime: number;
 }
 
-export interface RoutingStrategy {
+interface RoutingStrategy {
   type: "roundRobin" | "leastLoaded" | "fastestResponse";
   timeout: number;
 }
@@ -77,7 +77,7 @@ export class ToolRequestParser {
     // Validate parameters against schema
     const result = this.paramValidator.validate(
       request.parameters,
-      toolInfo.schema
+      toolInfo.schema,
     );
 
     if (!result.isValid) {
@@ -92,7 +92,7 @@ export class ToolRequestParser {
    * Route a request to an appropriate server
    */
   public async routeRequest(
-    request: ParsedToolRequest
+    request: ParsedToolRequest,
   ): Promise<{ serverName: string; timeout: number }> {
     const availableServers = this.getHealthyServers();
 
@@ -248,7 +248,7 @@ export class ToolRequestError extends Error {
       code: string;
       cause?: Error;
       details?: any;
-    }
+    },
   ) {
     super(message);
     if (options.cause) {

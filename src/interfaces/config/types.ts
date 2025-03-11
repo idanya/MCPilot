@@ -3,11 +3,7 @@
  */
 
 import { LogLevel } from "../base/session";
-import {
-  OpenAIConfig,
-  AnthropicConfig,
-  LocalConfig,
-} from "../../providers/provider-config";
+import { OpenAIConfig, AnthropicConfig } from "../../providers/provider-config";
 
 export type LogLevelStrings = keyof typeof LogLevel;
 
@@ -36,9 +32,6 @@ export interface MCPilotConfig {
     anthropic?: Omit<AnthropicConfig, "name" | "modelName"> & {
       model: string;
     };
-    local?: Omit<LocalConfig, "name" | "modelName"> & {
-      model: string;
-    };
     [key: string]:
       | {
           model: string;
@@ -60,15 +53,18 @@ export interface MCPilotConfig {
     maxSize?: string;
   };
   mcp?: {
-    servers?: Record<string, {
-      command: string;
-      args?: string[];
-      env?: Record<string, string>;
-      disabled?: boolean;
-      timeout?: number;
-      alwaysAllow?: string[];
-      type?: "stdio" | "http";
-    }>;
+    servers?: Record<
+      string,
+      {
+        command: string;
+        args?: string[];
+        env?: Record<string, string>;
+        disabled?: boolean;
+        timeout?: number;
+        alwaysAllow?: string[];
+        type?: "stdio" | "http";
+      }
+    >;
   };
 }
 
