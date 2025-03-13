@@ -3,8 +3,8 @@
  */
 
 import { z } from "zod";
-import { LogLevel } from "../../interfaces/base/session";
-import { mcpServerConfigSchema, McpServerConfig } from "./mcp-schema";
+import { LogLevel } from "../../interfaces/base/session.ts";
+import { mcpServerConfigSchema, McpServerConfig } from "./mcp-schema.ts";
 
 // Provider-specific schemas
 const openAiConfigSchema = z.object({
@@ -103,7 +103,7 @@ export const configSchema = z
 export type ConfigSchema = z.infer<typeof configSchema>;
 
 // Re-export MCP configuration types
-export type { McpServerConfig } from "./mcp-schema";
+export type { McpServerConfig } from "./mcp-schema.ts";
 
 // Helper type for MCP configuration section
 export type McpConfigSection = {

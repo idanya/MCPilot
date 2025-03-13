@@ -20,8 +20,8 @@ export class XmlParser {
    */
   public parseToolRequests(text: string): ParsedToolRequest[] {
     const requests: ParsedToolRequest[] = [];
-    // Modified pattern to be more strict about what constitutes a tool request
-    const pattern = /(?:^|\s)(<([a-z][a-z0-9_]*?)>[\s\S]*?<\/\2>)(?:\s|$)/gm;
+    // Pattern specifically matches use_mcp_tool tags
+    const pattern = /(<use_mcp_tool>[\s\S]*?<\/use_mcp_tool>)/g;
     let match;
 
     while ((match = pattern.exec(text)) !== null) {
@@ -45,17 +45,12 @@ export class XmlParser {
    * Parse single tool request
    */
   private parseToolRequest(text: string): ParsedToolRequest {
-    const toolMatch = /<([^>]+)>([\s\S]*?)<\/\1>/g.exec(text);
+    const toolMatch = /<use_mcp_tool>([\s\S]*?)<\/use_mcp_tool>/g.exec(text);
     if (!toolMatch) {
       throw new XmlParseError("Invalid tool request format");
     }
 
-    const [, toolName, content] = toolMatch;
-
-    if (toolName !== "use_mcp_tool") {
-      throw new XmlParseError("Only MCP tool requests are supported");
-    }
-
+    const [, content] = toolMatch;
     const params = this.parseParameters(content);
 
     // Validate required parameters

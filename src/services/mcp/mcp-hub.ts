@@ -1,15 +1,17 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { createInterface } from "readline";
 import {
   CallToolResultSchema,
   ListResourcesResultSchema,
   ListResourceTemplatesResultSchema,
   ListToolsResultSchema,
   ReadResourceResultSchema,
-} from "@modelcontextprotocol/sdk/types";
+} from "@modelcontextprotocol/sdk/types.js";
 
 import {
   ExtendedResourceContent,
+  McpHubConfig,
   McpResource,
   McpResourceResponse,
   McpResourceTemplate,
@@ -18,9 +20,9 @@ import {
   McpToolCallResponse,
   McpToolOutput,
   ToolProperty,
-} from "./types";
-import { McpServerConfig, validateServerState } from "../config/mcp-schema";
-import { ToolCatalogBuilder } from "./tool-catalog";
+} from "./types.ts";
+import { McpServerConfig, validateServerState } from "../config/mcp-schema.ts";
+import { ToolCatalogBuilder } from "./tool-catalog.ts";
 
 interface ConnectionError extends Error {
   code: string;
@@ -39,8 +41,11 @@ export class McpHub {
   private isConnecting: boolean = false;
   private mcpServers: Record<string, McpServerConfig>;
 
-  constructor(mcpServers: Record<string, McpServerConfig>) {
-    this.mcpServers = mcpServers;
+  private autoApproveTools: boolean = false;
+
+  constructor(config: McpHubConfig) {
+    this.mcpServers = config.servers;
+    this.autoApproveTools = config.autoApproveTools || false;
     this.toolCatalog = new ToolCatalogBuilder();
   }
 
@@ -574,6 +579,28 @@ export class McpHub {
     if (connection.server.disabled) {
       throw new Error(`Server "${serverName}" is disabled and cannot be used`);
     }
+
+    if (toolName !== "tools/list" && !this.autoApproveTools) {
+      // Add user confirmation
+      const readline = createInterface({
+        input: process.stdin,
+        output: process.stdout,
+      });
+
+      const answer = await new Promise<string>((resolve) => {
+        readline.question(
+          `Do you want to run tool '${toolName}' on server '${serverName}'? (Y/N) `,
+          resolve,
+        );
+      });
+      readline.close();
+
+      if (answer.toLowerCase() !== "y") {
+        process.exit(0);
+      }
+    }
+
+    console.log(`Calling tool '${toolName}' on server '${serverName}'...`);
 
     const config = connection.server.config;
     const timeout =

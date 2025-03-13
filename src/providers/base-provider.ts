@@ -2,9 +2,9 @@
  * Abstract base class for LLM providers
  */
 
-import { Context } from "../interfaces/base/context";
-import { Response } from "../interfaces/base/response";
-import { ILLMProvider, ProviderConfig } from "../interfaces/llm/provider";
+import { Context } from "../interfaces/base/context.ts";
+import { Response } from "../interfaces/base/response.ts";
+import { ILLMProvider, ProviderConfig } from "../interfaces/llm/provider.ts";
 
 export abstract class BaseLLMProvider implements ILLMProvider {
   protected config: ProviderConfig;

@@ -5,14 +5,18 @@
   "type": "module",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
+    "build:ci": "tsc && npm run build",
+    "build": "npm run clean && swc --strip-leading-paths src/ --out-dir dist && npm run postbuild",
+    "postbuild": "chmod +x ./dist/cli/index.js",
     "start": "node dist/index.js",
     "dev": "npx tsx src/cli/index.ts",
     "clean": "rimraf dist",
     "test": "jest",
     "lint": "eslint src --ext .ts",
-    "format": "prettier --write \"src/**/*.ts\"",
-    "prepare": "husky install"
+    "format": "prettier --write \"src/**/*.ts\""
+  },
+  "bin": {
+    "mcpilot": "./dist/cli/index.js"
   },
   "keywords": [
     "mcp",
@@ -23,8 +27,9 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.17.1",
+    "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.6.1",
+    "@swc/plugin-transform-imports": "^7.0.0",
     "axios": "^1.6.7",
     "commander": "^12.0.0",
     "debug": "^4.3.4",
@@ -34,9 +39,12 @@
     "openai": "^4.28.0",
     "p-queue": "^7.4.1",
     "stream-json": "^1.8.0",
+    "uuid": "^11.1.0",
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@swc/cli": "^0.6.0",
+    "@swc/core": "^1.11.8",
     "@types/debug": "^4.1.12",
     "@types/jest": "^29.5.12",
     "@types/node": "^20.11.19",

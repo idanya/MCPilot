@@ -8,8 +8,8 @@ import {
   ProviderType,
   ProviderConfig,
   ProviderCreator,
-} from "../interfaces/llm/provider";
-import { MCPilotError, ErrorSeverity } from "../interfaces/error/types";
+} from "../interfaces/llm/provider.ts";
+import { MCPilotError, ErrorSeverity } from "../interfaces/error/types.ts";
 
 export class ProviderFactory implements IProviderFactory {
   private providers: Map<ProviderType, ProviderCreator>;

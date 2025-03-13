@@ -2,7 +2,7 @@
  * Parameter validator for tool requests
  */
 
-import { ToolSchema, ToolProperty, ToolSchemaItems } from "../mcp/types";
+import { ToolSchema, ToolProperty, ToolSchemaItems } from "../mcp/types.ts";
 
 export interface ValidationResult {
   isValid: boolean;
@@ -48,6 +48,7 @@ export class ParameterValidator {
     parameters: Record<string, string>,
     schema: ToolSchema,
   ): ValidationResult {
+    // Convert XML parameters to proper types based on schema
     const errors: ValidationError[] = [];
 
     // Check for required parameters
@@ -120,14 +121,31 @@ export class ParameterValidator {
     schema: ToolSchema,
     errors: ValidationError[],
   ): void {
+    // For arrays and objects, try to parse as JSON only if value starts with [ or {
+    let parsedValue = value;
+    // if ((property.type === "array" && value.trim().startsWith("[")) ||
+    //     (property.type === "object" && value.trim().startsWith("{"))) {
+    //   try {
+    //     parsedValue = JSON.parse(value);
+    //   } catch {
+    //     errors.push({
+    //       parameter: name,
+    //       message: `Invalid JSON format for ${name}`,
+    //       code: ValidationErrorCode.INVALID_TYPE,
+    //     });
+    //     return;
+    //   }
+    // }
+
     // Basic type validation
-    if (!this.validateType(value, property.type)) {
+    const typeValid = this.validateType(parsedValue, property.type);
+    if (!typeValid) {
       errors.push({
         parameter: name,
         message: `Invalid type for ${name}: expected ${property.type}`,
         code: ValidationErrorCode.INVALID_TYPE,
       });
-      return; // Skip further validation if type is invalid
+      return;
     }
 
     // Validate number constraints
@@ -163,7 +181,6 @@ export class ParameterValidator {
 
     // Validate enum values
     if (property.enum) {
-      const parsedValue = this.parseValue(value, property.type);
       if (!property.enum.includes(parsedValue)) {
         errors.push({
           parameter: name,
@@ -174,20 +191,17 @@ export class ParameterValidator {
     }
 
     // Validate array items
-    if (property.type === "array" && schema.items) {
-      try {
-        const arrayValue = JSON.parse(value);
-        if (Array.isArray(arrayValue)) {
-          this.validateArrayItems(name, arrayValue, schema.items, errors);
-        }
-      } catch {
-        // JSON parse error already caught by type validation
-      }
+    if (
+      property.type === "array" &&
+      schema.items &&
+      Array.isArray(parsedValue)
+    ) {
+      this.validateArrayItems(name, parsedValue, schema.items, errors);
     }
 
     // Run custom validators
     for (const validator of this.customValidators) {
-      const error = validator(this.parseValue(value, property.type), property);
+      const error = validator(parsedValue, property);
       if (error) {
         errors.push({
           ...error,
@@ -239,30 +253,50 @@ export class ParameterValidator {
   /**
    * Validate parameter type
    */
-  private validateType(value: string, type: string): boolean {
+  private validateType(value: any, type: string): boolean {
+    // If value is already parsed (for arrays/objects), validate directly
+    if (typeof value !== "string") {
+      switch (type) {
+        case "array":
+          return Array.isArray(value);
+        case "object":
+          return typeof value === "object" && value !== null;
+        case "string":
+          return typeof value === "string";
+        case "number":
+          return typeof value === "number" || !isNaN(Number(value));
+        case "boolean":
+          return (
+            typeof value === "boolean" || value === "true" || value === "false"
+          );
+        default:
+          return false;
+      }
+    }
+
+    // For string values
     switch (type) {
       case "string":
-        return true; // All values are strings from XML parser
+        return true;
       case "number":
         return !isNaN(Number(value));
       case "boolean":
         return value === "true" || value === "false";
       case "array":
-        try {
-          const parsed = JSON.parse(value);
-          return Array.isArray(parsed);
-        } catch {
-          return false;
-        }
+        return value.trim().startsWith("[") && this.isValidJson(value);
       case "object":
-        try {
-          const parsed = JSON.parse(value);
-          return typeof parsed === "object" && parsed !== null;
-        } catch {
-          return false;
-        }
+        return value.trim().startsWith("{") && this.isValidJson(value);
       default:
         return false;
+    }
+  }
+
+  private isValidJson(value: string): boolean {
+    try {
+      JSON.parse(value);
+      return true;
+    } catch {
+      return false;
     }
   }
 

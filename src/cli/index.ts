@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /**
  * CLI entry point for MCPilot
  */
@@ -12,10 +14,10 @@ import {
   OpenAIConfig,
   OpenAIProvider,
   ProviderFactory,
-} from "../providers/index";
-import { SessionManager } from "../services/session/index";
-import { handleError, handleResume, handleStart } from "./actions";
-import { MCPilotCLIOptions } from "./types";
+} from "../providers/index.ts";
+import { SessionManager } from "../services/session/index.ts";
+import { handleError, handleResume, handleStart } from "./actions.ts";
+import { MCPilotCLIOptions } from "./types.ts";
 import { readFileSync } from "fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -76,6 +78,16 @@ class MCPilotCLI {
         "Path to roles configuration file",
         ".mcpilot-roles.json",
       )
+      .option(
+        "-w, --working-directory <path>",
+        "Working directory for the session",
+        process.cwd(),
+      )
+      .option(
+        "--auto-approve-tools",
+        "Automatically approve MCP tool calls without prompting",
+        false,
+      )
       .action((instruction: string, options: MCPilotCLIOptions) => {
         handleStart(
           this.sessionManager,
@@ -121,7 +133,4 @@ export function runCLI() {
   return cli.run().catch(console.error);
 }
 
-// Create and execute CLI only if this file is run directly
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  runCLI();
-}
+runCLI();

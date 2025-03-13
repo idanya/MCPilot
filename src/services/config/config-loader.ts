@@ -9,9 +9,9 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_ENV_MAPPINGS,
   MCPilotConfig,
-} from "../../interfaces/config/types";
-import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types";
-import { validateConfig } from "./config-schema";
+} from "../../interfaces/config/types.ts";
+import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
+import { validateConfig } from "./config-schema.ts";
 
 export class ConfigLoader {
   private config: MCPilotConfig;

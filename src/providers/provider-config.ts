@@ -2,7 +2,7 @@
  * Provider configuration types
  */
 
-import { ProviderConfig } from "../interfaces/llm/provider";
+import { ProviderConfig } from "../interfaces/llm/provider.ts";
 
 export interface OpenAIConfig extends ProviderConfig {
   apiVersion?: string;

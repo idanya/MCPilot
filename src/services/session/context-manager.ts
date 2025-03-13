@@ -2,10 +2,10 @@
  * Manages conversation context and state
  */
 
-import { Context, ContextMetadata } from "../../interfaces/base/context";
-import { ContextData } from "../../interfaces/base/session";
-import { IContextManager } from "../../interfaces/base/session";
-import { MCPilotError, ErrorSeverity } from "../../interfaces/error/types";
+import { Context, ContextMetadata } from "../../interfaces/base/context.ts";
+import { ContextData } from "../../interfaces/base/session.ts";
+import { IContextManager } from "../../interfaces/base/session.ts";
+import { MCPilotError, ErrorSeverity } from "../../interfaces/error/types.ts";
 
 export class ContextManager implements IContextManager {
   private context: Context;

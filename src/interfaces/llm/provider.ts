@@ -2,8 +2,8 @@
  * Defines the interface for LLM providers and their configuration
  */
 
-import type { Context } from "../base/context";
-import type { Response } from "../base/response";
+import type { Context } from "../base/context.ts";
+import type { Response } from "../base/response.ts";
 
 export type ILLMProvider = {
   initialize(config: ProviderConfig): Promise<void>;

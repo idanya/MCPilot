@@ -2,15 +2,15 @@
  * System Prompt Enhancer for MCP integration
  */
 
-import { ToolCatalogBuilder, ToolDocumentation } from "../mcp/tool-catalog";
+import { ToolCatalogBuilder, ToolDocumentation } from "../mcp/tool-catalog.ts";
 import {
   buildToolUsageSection,
   buildToolUseGuidelinesSection,
   formatSection,
   buildFileSystemRestrictionsSection,
   buildFileSystemEnvironmentSection,
-} from "./prompts";
-import { listDirectoryContents } from "./utils";
+} from "./prompts.ts";
+import { listDirectoryContents } from "./utils.ts";
 
 interface PromptSection {
   title: string;

@@ -3,10 +3,10 @@
  * message flow and logging across a single interaction session.
  */
 
-import type { Context, DeepPartial } from "./context";
-import type { Message } from "./message";
-import type { Response } from "./response";
-import type { SessionState } from "./state";
+import type { Context, DeepPartial } from "./context.ts";
+import type { Message } from "./message.ts";
+import type { Response } from "./response.ts";
+import type { SessionState } from "./state.ts";
 
 export type ISessionManager = {
   createSession(): Promise<Session>;

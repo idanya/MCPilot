@@ -4,28 +4,28 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { Context, DeepPartial } from "../../interfaces/base/context";
+import { Context, DeepPartial } from "../../interfaces/base/context.ts";
 import {
   Message,
   MessageType,
   ToolCallStatus,
-} from "../../interfaces/base/message";
-import { Response, ResponseType } from "../../interfaces/base/response";
+} from "../../interfaces/base/message.ts";
+import { Response, ResponseType } from "../../interfaces/base/response.ts";
 import {
   IContextManager,
   ISessionManager,
   Session,
-} from "../../interfaces/base/session";
-import { SessionState } from "../../interfaces/base/state";
-import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types";
-import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types";
-import { ILLMProvider } from "../../interfaces/llm/provider";
-import { RoleConfigLoader } from "../config/role-config-loader";
-import { McpHub } from "../mcp/mcp-hub";
-import { ToolRequestParser } from "../parser/tool-request-parser";
-import { SystemPromptEnhancer } from "../prompt/prompt-enhancer";
-import { ContextManager } from "./context-manager";
-import { McpServerConfig } from "../config/mcp-schema";
+} from "../../interfaces/base/session.ts";
+import { SessionState } from "../../interfaces/base/state.ts";
+import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types.ts";
+import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
+import { ILLMProvider } from "../../interfaces/llm/provider.ts";
+import { RoleConfigLoader } from "../config/role-config-loader.ts";
+import { McpHub } from "../mcp/mcp-hub.ts";
+import { ToolRequestParser } from "../parser/tool-request-parser.ts";
+import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
+import { ContextManager } from "./context-manager.ts";
+import { ParsedToolRequest } from "../parser/xml-parser.ts";
 
 export class SessionManager implements ISessionManager {
   private currentSession: Session | null = null;
@@ -42,6 +42,8 @@ export class SessionManager implements ISessionManager {
     private readonly provider: ILLMProvider,
     private readonly rolesConfigPath?: string,
     private readonly initialRoleName?: string,
+    private readonly workingDirectory: string = process.cwd(),
+    private readonly autoApproveTools: boolean = false,
   ) {
     this.provider = provider;
     this.currentRoleName = initialRoleName;
@@ -49,7 +51,10 @@ export class SessionManager implements ISessionManager {
   }
 
   async #createMcpHub(): Promise<void> {
-    this.mcpHub = new McpHub(this.config.mcp?.servers || {});
+    this.mcpHub = new McpHub({
+      servers: this.config.mcp?.servers || {},
+      autoApproveTools: this.autoApproveTools,
+    });
     await this.mcpHub.initializeMcpServers();
   }
 
@@ -59,7 +64,7 @@ export class SessionManager implements ISessionManager {
     this.toolRequestParser = new ToolRequestParser(this.mcpHub);
     this.promptEnhancer = new SystemPromptEnhancer(
       this.mcpHub.getToolCatalog(),
-      process.cwd(),
+      this.workingDirectory,
     );
 
     await this.#loadRoleConfiguration(); // Load roles on initialization
@@ -72,7 +77,7 @@ export class SessionManager implements ISessionManager {
         sessionId: "",
         timestamp: new Date(),
         environment: {
-          cwd: process.cwd(),
+          cwd: this.workingDirectory,
           os: process.platform,
           shell: process.env.SHELL || "",
         },
@@ -391,9 +396,9 @@ export class SessionManager implements ISessionManager {
     try {
       const context = this.contextManager.getContext();
 
-      console.log("Processing message with tools: ", message.content);
+      console.log("Processing message with tools...");
       let response = await this.provider.processMessage(context);
-      console.log("Response: ", response);
+      console.log("Response: ", response.id);
 
       // Check for tool requests in response
       if (!response.content.text) {
@@ -417,9 +422,18 @@ export class SessionManager implements ISessionManager {
         ],
       });
 
-      const toolRequests = await this.toolRequestParser.parseRequest(
-        response.content.text,
-      );
+      let toolRequests: ParsedToolRequest[];
+      try {
+        toolRequests = await this.toolRequestParser.parseRequest(
+          response.content.text,
+        );
+      } catch (error) {
+        console.log("Error processing message with tools: ", error);
+        await this.executeMessage(
+          `Error processing message with tools: ${error}`,
+        );
+        return response;
+      }
 
       // If there's a tool request, process only the first one
       if (toolRequests.length > 0) {
@@ -431,10 +445,12 @@ export class SessionManager implements ISessionManager {
             request.arguments,
           );
 
+          console.log("Tool call result: ", result);
+
           // Create tool message for the LLM
           const toolMessage = {
             id: this.#generateMessageId(),
-            type: MessageType.TOOL,
+            type: MessageType.USER,
             content: JSON.stringify(result),
             timestamp: new Date(),
             metadata: {
@@ -456,11 +472,6 @@ export class SessionManager implements ISessionManager {
           };
 
           await this.executeMessage(toolMessage.content);
-
-          // response = await this.provider.processMessage({
-          //   ...context,
-          //   messages: [...context.messages, toolMessage],
-          // });
         } catch (error) {
           console.error("Tool call error:", error);
           throw error;

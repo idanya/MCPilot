@@ -2,6 +2,13 @@
  * Core MCP entities and types
  */
 
+import { McpServerConfig } from "../config/mcp-schema.ts";
+
+export interface McpHubConfig {
+  servers: Record<string, McpServerConfig>;
+  autoApproveTools?: boolean;
+}
+
 export interface McpConnection {
   id: string;
   name: string;

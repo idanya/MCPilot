@@ -2,7 +2,7 @@
  * Defines the structure and management of conversation context
  */
 
-import { Message } from "./message";
+import { Message } from "./message.ts";
 
 /**
  * Makes all properties of T optional recursively

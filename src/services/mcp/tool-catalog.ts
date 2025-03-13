@@ -2,7 +2,7 @@
  * Tool catalog builder for MCP integration
  */
 
-import { McpTool, ToolExample, ToolSchema } from "./types";
+import { McpTool, ToolExample, ToolSchema } from "./types.ts";
 
 export interface ToolDocumentation {
   serverName: string;
@@ -71,11 +71,16 @@ export class ToolCatalogBuilder {
       },
     );
 
+    // Convert arguments to XML format
+    const argsXml = Object.entries(args)
+      .map(([key, value]) => `<${key}>${value}</${key}>`)
+      .join("\n");
+
     return `<use_mcp_tool>
 <server_name>${serverName}</server_name>
 <tool_name>${tool.name}</tool_name>
 <arguments>
-${JSON.stringify(args, null, 2)}
+${argsXml}
 </arguments>
 </use_mcp_tool>`;
   }
@@ -118,11 +123,16 @@ ${JSON.stringify(args, null, 2)}
       args[name] = this.getDefaultValue(prop);
     });
 
+    // Convert arguments to XML format
+    const argsXml = Object.entries(args)
+      .map(([key, value]) => `<${key}>${value}</${key}>`)
+      .join("\n");
+
     return `<use_mcp_tool>
 <server_name>${serverName}</server_name>
 <tool_name>${tool.name}</tool_name>
 <arguments>
-${JSON.stringify(args, null, 2)}
+${argsXml}
 </arguments>
 </use_mcp_tool>`;
   }
@@ -139,11 +149,16 @@ ${JSON.stringify(args, null, 2)}
       ? `// ${example.description}\n`
       : "";
 
+    // Convert arguments to XML format
+    const argsXml = Object.entries(example.input)
+      .map(([key, value]) => `<${key}>${value}</${key}>`)
+      .join("\n");
+
     return `${description}<use_mcp_tool>
 <server_name>${serverName}</server_name>
 <tool_name>${toolName}</tool_name>
 <arguments>
-${JSON.stringify(example.input, null, 2)}
+${argsXml}
 </arguments>
 </use_mcp_tool>`;
   }

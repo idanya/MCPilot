@@ -29,17 +29,13 @@
       "command": "uvx",
       "args": ["mcp-server-fetch"]
     },
-    "servers": {
-      "puppeteer": {
-        "command": "docker",
-        "args": ["run", "-i", "--rm", "--init", "-e", "DOCKER_CONTAINER=true", "mcp/puppeteer"]
-      },
+    "servers": {   
       "fs": {
         "command": "npx",
         "args": [
           "-y",
           "@modelcontextprotocol/server-filesystem",
-          "/tmp"
+          "/Users/idanyael/dev/evm-blockchain-tx-watcher"
         ],
         "enabled": true,
         "timeout": 3600,

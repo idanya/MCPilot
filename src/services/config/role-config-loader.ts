@@ -4,9 +4,9 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { RoleConfig, RolesConfig } from "../../interfaces/config/types";
-import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types";
-import { validateRolesConfig } from "./role-schema";
+import { RoleConfig, RolesConfig } from "../../interfaces/config/types.ts";
+import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
+import { validateRolesConfig } from "./role-schema.ts";
 
 interface RoleConfigLoaderOptions {
   configPath?: string;

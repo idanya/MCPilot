@@ -61,10 +61,8 @@ export function buildToolUsageSection(): string {
 <server_name>Target server that will execute the tool</server_name>
 <tool_name>Name of the tool to execute</tool_name>
 <arguments>
-{
-  "parameterName": "parameterValue",
-  "anotherParam": 123
-}
+<parameterName>parameterValue</parameterName>
+<anotherParam>123</anotherParam>
 </arguments>
 </use_mcp_tool>
 
@@ -87,10 +85,8 @@ MCP tool:
 <server_name>weather-server</server_name>
 <tool_name>get_forecast</tool_name>
 <arguments>
-{
-  "city": "San Francisco",
-  "days": 5
-}
+<city>San Francisco</city>
+<days>5</days>
 </arguments>
 </use_mcp_tool>
 

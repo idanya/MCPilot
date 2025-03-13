@@ -1,7 +1,6 @@
-import { XmlParser, ParsedToolRequest } from "./xml-parser";
-import { ParameterValidator, ValidationResult } from "./parameter-validator";
-import { McpHub } from "../mcp/mcp-hub";
-import { ToolSchema } from "../mcp/types";
+import { McpHub } from "../mcp/mcp-hub.ts";
+import { ParameterValidator } from "./parameter-validator.ts";
+import { ParsedToolRequest, XmlParser } from "./xml-parser.ts";
 
 interface ServerHealth {
   name: string;
@@ -74,7 +73,26 @@ export class ToolRequestParser {
       });
     }
 
-    // Validate parameters against schema
+    // Convert XML arguments to proper types based on schema
+    // const args = Object.fromEntries(
+    //   Object.entries(request.arguments).map(([key, value]) => {
+    //     // Try to parse JSON if the value looks like JSON
+    //     if (
+    //       (value.startsWith("[") && value.endsWith("]")) ||
+    //       (value.startsWith("{") && value.endsWith("}"))
+    //     ) {
+    //       try {
+    //         return [key, JSON.parse(value)];
+    //       } catch {
+    //         // If parsing fails, use the raw string value
+    //         return [key, value];
+    //       }
+    //     }
+    //     return [key, value];
+    //   })
+    // );
+
+    // Validate the converted arguments
     const result = this.paramValidator.validate(
       request.arguments,
       toolInfo.schema,
@@ -86,96 +104,6 @@ export class ToolRequestParser {
         details: result.errors,
       });
     }
-  }
-
-  /**
-   * Route a request to an appropriate server
-   */
-  public async routeRequest(
-    request: ParsedToolRequest,
-  ): Promise<{ serverName: string; timeout: number }> {
-    const availableServers = this.getHealthyServers();
-
-    if (availableServers.length === 0) {
-      throw new ToolRequestError("No healthy servers available", {
-        code: "NO_SERVERS",
-      });
-    }
-
-    const serverName = await this.selectServer(availableServers);
-    return {
-      serverName,
-      timeout: this.routingStrategy.timeout,
-    };
-  }
-
-  /**
-   * Select a server based on current routing strategy
-   */
-  private async selectServer(servers: string[]): Promise<string> {
-    switch (this.routingStrategy.type) {
-      case "roundRobin":
-        this.lastUsedServer = (this.lastUsedServer + 1) % servers.length;
-        return servers[this.lastUsedServer];
-
-      case "leastLoaded":
-        return this.selectLeastLoadedServer(servers);
-
-      case "fastestResponse":
-        return this.selectFastestServer(servers);
-
-      default:
-        return servers[0];
-    }
-  }
-
-  /**
-   * Select server with lowest current load
-   */
-  private selectLeastLoadedServer(servers: string[]): string {
-    let minLoad = Infinity;
-    let selectedServer = servers[0];
-
-    for (const server of servers) {
-      const health = this.serverHealth.get(server);
-      if (health && health.responseTime < minLoad) {
-        minLoad = health.responseTime;
-        selectedServer = server;
-      }
-    }
-
-    return selectedServer;
-  }
-
-  /**
-   * Select server with fastest response time
-   */
-  private selectFastestServer(servers: string[]): string {
-    let fastestTime = Infinity;
-    let selectedServer = servers[0];
-
-    for (const server of servers) {
-      const health = this.serverHealth.get(server);
-      if (health && health.responseTime < fastestTime) {
-        fastestTime = health.responseTime;
-        selectedServer = server;
-      }
-    }
-
-    return selectedServer;
-  }
-
-  /**
-   * Get list of currently healthy servers
-   */
-  private getHealthyServers(): string[] {
-    const servers = this.mcpHub.getServers();
-    return servers
-      .filter((server) => {
-        const health = this.serverHealth.get(server.name);
-        return health && health.status === "healthy";
-      })
-      .map((server) => server.name);
   }
 
   /**

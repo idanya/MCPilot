@@ -5,7 +5,7 @@
 import * as path from "path";
 import * as fs from "fs/promises";
 import { z } from "zod";
-import { validateMcpConfig, McpConfig } from "./mcp-schema";
+import { validateMcpConfig, McpConfig } from "./mcp-schema.ts";
 
 export class McpConfigLoader {
   private configPath: string;

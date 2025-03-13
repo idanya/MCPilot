@@ -2,7 +2,7 @@
  * OpenAI provider specific types
  */
 
-import { Message } from "../../../interfaces/base/message";
+import { Message } from "../../../interfaces/base/message.ts";
 
 export interface OpenAIMessage {
   role: "system" | "user" | "assistant" | "function";

@@ -2,8 +2,8 @@
  * Provider-related exports
  */
 
-export { BaseLLMProvider } from "./base-provider";
-export { ProviderFactory } from "./provider-factory";
+export { BaseLLMProvider } from "./base-provider.ts";
+export { ProviderFactory } from "./provider-factory.ts";
 
 // Re-export provider types from interfaces for convenience
 export type {
@@ -19,20 +19,20 @@ export type {
   ProviderPlugin,
   PluginConfigSchema,
   PluginConfigProperty,
-} from "../interfaces/llm/provider";
+} from "../interfaces/llm/provider.ts";
 
-export { ProviderType } from "../interfaces/llm/provider";
+export { ProviderType } from "../interfaces/llm/provider.ts";
 // Export specific provider implementations
-export { OpenAIProvider } from "./implementations/openai-provider";
-export { AnthropicProvider } from "./implementations/anthropic-provider";
+export { OpenAIProvider } from "./implementations/openai-provider.ts";
+export { AnthropicProvider } from "./implementations/anthropic-provider.ts";
 
 // Export provider configuration types
 export type {
   ProviderConfigMap,
   OpenAIConfig,
   AnthropicConfig,
-} from "./provider-config";
+} from "./provider-config.ts";
 
 // Export provider-specific types
-export * from "./implementations/openai/types";
-export * from "./implementations/anthropic/types";
+export * from "./implementations/openai/types.ts";
+export * from "./implementations/anthropic/types.ts";

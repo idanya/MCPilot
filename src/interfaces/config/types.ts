@@ -2,9 +2,12 @@
  * Configuration type definitions
  */
 
-import { LogLevel } from "../base/session";
-import { OpenAIConfig, AnthropicConfig } from "../../providers/provider-config";
-import { McpServerConfig } from "../../services/config/mcp-schema";
+import { LogLevel } from "../base/session.ts";
+import {
+  OpenAIConfig,
+  AnthropicConfig,
+} from "../../providers/provider-config.ts";
+import { McpServerConfig } from "../../services/config/mcp-schema.ts";
 
 export type LogLevelStrings = keyof typeof LogLevel;
 

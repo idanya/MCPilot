@@ -12,9 +12,7 @@ export interface Message {
 
 export enum MessageType {
   USER = "user",
-  SYSTEM = "system",
   ASSISTANT = "assistant",
-  TOOL = "tool",
 }
 
 export interface MessageMetadata {

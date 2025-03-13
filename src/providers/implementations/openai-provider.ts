@@ -3,13 +3,17 @@
  */
 
 import axios, { AxiosInstance } from "axios";
-import { BaseLLMProvider } from "../base-provider";
-import { Context } from "../../interfaces/base/context";
-import { Response, ResponseType } from "../../interfaces/base/response";
-import { Message, MessageType } from "../../interfaces/base/message";
-import { ProviderConfig } from "../../interfaces/llm/provider";
-import { MCPilotError, ErrorSeverity } from "../../interfaces/error/types";
-import { OpenAIMessage, OpenAICompletion, OpenAIError } from "./openai/types";
+import { BaseLLMProvider } from "../base-provider.ts";
+import { Context } from "../../interfaces/base/context.ts";
+import { Response, ResponseType } from "../../interfaces/base/response.ts";
+import { Message, MessageType } from "../../interfaces/base/message.ts";
+import { ProviderConfig } from "../../interfaces/llm/provider.ts";
+import { MCPilotError, ErrorSeverity } from "../../interfaces/error/types.ts";
+import {
+  OpenAIMessage,
+  OpenAICompletion,
+  OpenAIError,
+} from "./openai/types.ts";
 
 export class OpenAIProvider extends BaseLLMProvider {
   private apiClient: AxiosInstance;

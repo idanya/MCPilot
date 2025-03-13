@@ -1,13 +1,13 @@
-import { MCPilotConfig } from "../interfaces/config/types";
-import { ErrorSeverity, MCPilotError } from "../interfaces/error/types";
+import { MCPilotConfig } from "../interfaces/config/types.ts";
+import { ErrorSeverity, MCPilotError } from "../interfaces/error/types.ts";
 import {
   ILLMProvider,
   ProviderFactory,
   ProviderType,
-} from "../providers/index";
-import { ConfigLoader } from "../services/config/config-loader";
-import { SessionManager } from "../services/session/index";
-import { MCPilotCLIOptions } from "./types";
+} from "../providers/index.ts";
+import { ConfigLoader } from "../services/config/config-loader.ts";
+import { SessionManager } from "../services/session/index.ts";
+import { MCPilotCLIOptions } from "./types.ts";
 
 export function handleError(error: any): never {
   if (error instanceof MCPilotError) {
@@ -43,6 +43,8 @@ export async function handleStart(
     provider,
     options.rolesConfig,
     options.role,
+    options.workingDirectory,
+    options.autoApproveTools,
   );
 
   await sessionManager.current.createSession();
@@ -76,7 +78,13 @@ export async function handleResume(
   const provider = await createProvider(providerFactory, config, options);
 
   if (!sessionManager) {
-    sessionManager = new SessionManager(config, provider, options.rolesConfig);
+    sessionManager = new SessionManager(
+      config,
+      provider,
+      options.rolesConfig,
+      undefined,
+      options.workingDirectory,
+    );
   }
 
   await sessionManager.resumeSession(logPath);

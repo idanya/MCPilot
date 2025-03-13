@@ -2,16 +2,20 @@
  * Main entry point for MCPilot
  */
 
-import { LogLevel } from "./interfaces/base/session";
-import { MCPilotError } from "./interfaces/error/types";
-import { SessionManager } from "./services/session/index";
-import { ProviderFactory } from "./providers/provider-factory";
-import { ILLMProvider } from "./interfaces/llm/provider";
-import { MCPilotConfig } from "./interfaces/config/types";
+import { LogLevel } from "./interfaces/base/session.ts";
+import { MCPilotError } from "./interfaces/error/types.ts";
+import { SessionManager } from "./services/session/index.ts";
+import { ProviderFactory } from "./providers/provider-factory.ts";
+import { ILLMProvider } from "./interfaces/llm/provider.ts";
+import { MCPilotConfig } from "./interfaces/config/types.ts";
 
-export { SessionManager, ContextManager, LogLevel } from "./services/session";
+export {
+  SessionManager,
+  ContextManager,
+  LogLevel,
+} from "./services/session/index.ts";
 
-export type { SessionState } from "./interfaces/base/state";
+export type { SessionState } from "./interfaces/base/state.ts";
 
 export type {
   Message,
@@ -19,7 +23,7 @@ export type {
   Context,
   Response,
   ResponseType,
-} from "./services/session/index";
+} from "./services/session/index.ts";
 
 // Provider system
 export {
@@ -28,12 +32,12 @@ export {
   OpenAIProvider,
   AnthropicProvider,
   ProviderType,
-} from "./providers/index";
+} from "./providers/index.ts";
 
-export type { ProviderConfig } from "./providers/index";
+export type { ProviderConfig } from "./providers/index.ts";
 
 // Error handling
-export { MCPilotError, ErrorSeverity } from "./interfaces/error/types";
+export { MCPilotError, ErrorSeverity } from "./interfaces/error/types.ts";
 
 // MCP entities
 export type {
@@ -43,14 +47,14 @@ export type {
   McpResource,
   McpServer,
   ConnectionStatus,
-} from "./services/mcp/types";
+} from "./services/mcp/types.ts";
 
 // Configuration types
 export type {
   OpenAIConfig,
   AnthropicConfig,
   ProviderConfigMap,
-} from "./providers/provider-config";
+} from "./providers/provider-config.ts";
 
 // Create a new session
 export const createSession = async (options: {
