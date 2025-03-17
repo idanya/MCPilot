@@ -1,15 +1,15 @@
 # MCPilot
 
-A general-purpose system that executes tasks using MCP tooling through prompt-based interactions.
+A general-purpose system that executes tasks using MCP tooling through prompt-based interactions with LLMs.
 
 ## Features
 
-- Plugin-based LLM provider system supporting multiple backends
+- Multi-provider LLM support (OpenAI, Anthropic, Local models)
+- Role-based interactions with customizable behaviors
 - Robust session management with context preservation
-- Tool integration through MCP protocol
-- Extensible architecture with clean interfaces
-- Comprehensive logging and error handling
-- CLI interface for interactive use
+- MCP (Model Context Protocol) server integration
+- Comprehensive logging and configuration
+- Interactive CLI interface
 
 ## Installation
 
@@ -19,131 +19,147 @@ npm install mcpilot
 
 ## Quick Start
 
-```typescript
-import { createSession, LogLevel } from 'mcpilot';
+### CLI Usage
 
-async function main() {
-    // Create a new session
-    const session = await createSession({
-        contextSize: 4096,
-        logLevel: LogLevel.INFO
-    });
+Start a new session:
+```bash
+# Basic usage with instruction
+mcpilot start "Create a new React component"
 
-    // Process messages
-    const response = await session.processMessage(
-        'Hello! Can you help me with some programming tasks?'
-    );
-    
-    console.log('Response:', response.content);
+# Using a specific model
+mcpilot start -m gpt-4 "Optimize this function"
 
-    // Clean up
-    await session.endSession();
-}
+# Load instructions from file
+mcpilot start -i instructions.txt
+
+# Use a specific role
+mcpilot start -r architect "Design a new API"
+
+# Custom config and roles
+mcpilot start -c custom-config.json --roles-config custom-roles.json "Task description"
 ```
 
-## Architecture
-
-MCPilot is designed with a modular, plugin-based architecture:
-
-- **Session Management**: Handles conversation context, message flow, and state tracking
-- **LLM Providers**: Pluggable system for different LLM backends (OpenAI, Anthropic, Local)
-- **MCP Integration**: Tool execution through Model Context Protocol
-- **CLI Interface**: Command-line interface for interactive use
-
-### Core Components
-
-```mermaid
-graph TB
-    CLI[CLI Interface] --> SessionManager[Session Manager]
-    SessionManager --> LLMInterface[LLM Interface]
-    SessionManager --> MCPHub[MCP Hub]
-    LLMInterface --> PluginManager[Plugin Manager]
-    MCPHub --> ToolRegistry[Tool Registry]
+Resume a previous session:
+```bash
+mcpilot resume ./sessions/session_123.log "Continue the previous task"
 ```
+
+### CLI Options
+
+- `-m, --model <name>` - Specify the model to use
+- `-l, --log-level <level>` - Set log level (debug|info|warn|error)
+- `-c, --config <path>` - Path to config file (default: .mcpilot.config.json)
+- `-r, --role <name>` - Role to use for the session
+- `--roles-config <path>` - Path to roles config (default: .mcpilot-roles.json)
+- `-w, --working-directory <path>` - Working directory for the session
+- `-i, --instructions-file <path>` - Load instructions from a file
+- `--auto-approve-tools` - Automatically approve MCP tool calls
 
 ## Configuration
 
-Create a configuration file `mcpilot.config.js`:
+### Main Configuration (.mcpilot.config.json)
 
-```javascript
-module.exports = {
-    providers: {
-        openai: {
-            apiKey: process.env.OPENAI_API_KEY,
-            model: 'gpt-4'
-        },
-        anthropic: {
-            apiKey: process.env.ANTHROPIC_API_KEY,
-            model: 'claude-2'
-        }
+```json
+{
+  "providers": {
+    "openai": {
+      "model": "gpt-4",
+      "temperature": 0.7,
+      "maxTokens": 2048,
+      "apiKey": "your-api-key"  // Optional, can use env var
     },
-    session: {
-        logDirectory: './sessions',
-        contextSize: 4096,
-        maxQueueSize: 100
+    "anthropic": {
+      "model": "claude-3-sonnet",
+      "temperature": 1,
+      "maxTokens": 4096,
+      "apiKey": "your-api-key"  // Optional, can use env var
     },
-    logging: {
-        level: 'info',
-        format: 'json'
+    "local": {  // Optional local model configuration
+      "model": "llama2",
+      "modelPath": "/path/to/model",
+      "quantization": "q4_0",
+      "contextSize": 4096,
+      "threads": 4
     }
-};
+  },
+  "session": {
+    "logDirectory": "./sessions",
+    "contextSize": 4096,
+    "maxQueueSize": 100,
+    "defaultProvider": "openai"
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "file": "./logs/system.log",
+    "maxFiles": 5,
+    "maxSize": "10mb"
+  },
+  "mcp": {
+    "servers": {
+      "server-name": {
+        "command": "command-to-run",
+        "args": ["arg1", "arg2"],
+        "env": {
+          "ENV_VAR": "value"
+        },
+        "enabled": true,
+        "timeout": 3600,
+        "type": "stdio"
+      }
+    }
+  }
+}
 ```
 
-## CLI Usage
+### Roles Configuration (.mcpilot-roles.json)
 
-```bash
-# Start a new session
-mcpilot start --model gpt-4
+Define different personalities and behaviors for the AI:
 
-# Resume an existing session
-mcpilot resume ./sessions/session_123.log
-
-# Execute a message
-mcpilot execute "What is the factorial of 5?"
-
-# Check session status
-mcpilot status
-
-# End session
-mcpilot end
+```json
+{
+  "roles": {
+    "developer": {
+      "definition": "You are an expert software developer focused on writing clean, maintainable code.",
+      "instructions": "Focus on code quality, documentation, and testing."
+    },
+    "architect": {
+      "definition": "You are a software architect responsible for high-level system design.",
+      "instructions": "Emphasize system design, scalability, and maintainability."
+    },
+    "reviewer": {
+      "definition": "You are a code reviewer focused on maintaining code quality.",
+      "instructions": "Look for potential bugs, design issues, and coding standards."
+    }
+  },
+  "defaultRole": "developer"
+}
 ```
 
-## API Documentation
+## MCP Integration
 
-### Session Management
+MCPilot supports the Model Context Protocol (MCP) for tool integration. Configure MCP servers in the main config file under the `mcp.servers` section:
 
-```typescript
-import { createSession, resumeSession } from 'mcpilot';
-
-// Create new session
-const session = await createSession(options);
-
-// Resume existing session
-const resumedSession = await resumeSession(logPath);
-
-// Process messages
-const response = await session.processMessage(message);
-
-// Save session state
-await session.save();
-
-// End session
-await session.endSession();
-```
-
-### Provider System
-
-```typescript
-import { createProviderFactory, ProviderType } from 'mcpilot';
-
-// Create provider factory
-const factory = createProviderFactory();
-
-// Register custom provider
-factory.register(ProviderType.CUSTOM, myProviderCreator);
-
-// Create provider instance
-const provider = factory.create(ProviderType.OPENAI, config);
+```json
+{
+  "mcp": {
+    "servers": {
+      "filesystem": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PWD}"],
+        "enabled": true
+      },
+      "gitlab": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-gitlab"],
+        "env": {
+          "GITLAB_TOKEN": "your-token",
+          "GITLAB_URL": "https://gitlab.com/api/v4"
+        }
+      }
+    }
+  }
+}
 ```
 
 ## Contributing
