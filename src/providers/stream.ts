@@ -1,5 +1,7 @@
 export type ApiStream = AsyncGenerator<ApiStreamChunk>;
 export type ApiStreamChunk =
+  | ApiStreamMessageStop
+  | ApiStreamContentBlockStop
   | ApiStreamTextChunk
   | ApiStreamUsageChunk
   | ApiStreamReasoningChunk;
@@ -7,6 +9,14 @@ export type ApiStreamChunk =
 export interface ApiStreamTextChunk {
   type: "text";
   text: string;
+}
+
+export interface ApiStreamMessageStop {
+  type: "message_stop";
+}
+
+export interface ApiStreamContentBlockStop {
+  type: "content_block_stop";
 }
 
 export interface ApiStreamReasoningChunk {

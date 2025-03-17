@@ -6,8 +6,8 @@
       "maxTokens": 2048
     },
     "anthropic": {
-      "model": "claude-3-5-sonnet-latest",
-      "temperature": 0.7,
+      "model": "claude-3-7-sonnet-latest",
+      "temperature": 1,
       "maxTokens": 4096
     }
   },
@@ -25,11 +25,28 @@
     "maxSize": "10mb"
   },
   "mcp": {
-    "fetch": {
-      "command": "uvx",
-      "args": ["mcp-server-fetch"]
-    },
-    "servers": {   
+    "servers": {
+      "fetch": {
+        "command": "uvx",
+        "args": [
+          "mcp-server-fetch"
+        ]
+      },
+      "cli-mcp-server": {
+        "command": "uvx",
+        "args": [
+          "cli-mcp-server"
+        ],
+        "env": {
+          "ALLOWED_DIR": "/Users/idanyael/dev/evm-blockchain-tx-watcher",
+          "ALLOWED_COMMANDS": "all",
+          "ALLOWED_FLAGS": "all",
+          "MAX_COMMAND_LENGTH": "1024",
+          "COMMAND_TIMEOUT": "30"
+        },
+        "enabled": true,
+        "type": "stdio"
+      },
       "fs": {
         "command": "npx",
         "args": [
@@ -40,7 +57,7 @@
         "enabled": true,
         "timeout": 3600,
         "type": "stdio"
-      }      
+      }
     }
   }
 }

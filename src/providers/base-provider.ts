@@ -26,9 +26,13 @@ export abstract class BaseLLMProvider implements ILLMProvider {
     }
 
     try {
+      console.log("Processing message...");
       const formattedContext = await this.formatContext(context);
+      console.log("Sending request...");
       const response = await this.sendRequest(formattedContext);
+      console.log("Parsing response...");
       const parsedResponse = await this.parseResponse(response);
+      console.log("Validating response...");
       return this.validateResponse(parsedResponse);
     } catch (error) {
       throw this.handleError(error);

@@ -48,6 +48,6 @@ export interface AnthropicRequestOptions {
   messages: Anthropic.Messages.MessageParam[];
   max_tokens: number;
   temperature?: number;
-  system?: AnthropicMessageWithCacheControl[];
+  system?: Anthropic.Messages.TextBlockParam[];
   stream?: boolean;
 }

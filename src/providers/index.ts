@@ -23,8 +23,8 @@ export type {
 
 export { ProviderType } from "../interfaces/llm/provider.ts";
 // Export specific provider implementations
-export { OpenAIProvider } from "./implementations/openai-provider.ts";
-export { AnthropicProvider } from "./implementations/anthropic-provider.ts";
+export { OpenAIProvider } from "./implementations/openai/openai-provider.ts";
+export { AnthropicProvider } from "./implementations/anthropic/anthropic-provider.ts";
 
 // Export provider configuration types
 export type {
