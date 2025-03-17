@@ -8,12 +8,13 @@ import {
 import { ConfigLoader } from "../services/config/config-loader.ts";
 import { SessionManager } from "../services/session/index.ts";
 import { MCPilotCLIOptions } from "./types.ts";
+import { createLogger, logger } from "../services/logger/index.ts";
 
 export function handleError(error: any): never {
   if (error instanceof MCPilotError) {
-    console.error(`Error: ${error.message} (${error.code})`);
+    logger.error(`Error: ${error.message} (${error.code})`);
   } else {
-    console.error("Unexpected error:", error);
+    logger.error("Unexpected error:", error);
   }
   process.exit(1);
 }
@@ -34,6 +35,10 @@ export async function handleStart(
   instruction: string,
   options: MCPilotCLIOptions,
 ): Promise<void> {
+  // Configure logger with CLI log level
+  const newLogger = createLogger(options.logLevel);
+  Object.assign(logger, newLogger);
+
   const config = await createConfig(options);
   const provider = await createProvider(providerFactory, config, options);
 
@@ -48,7 +53,7 @@ export async function handleStart(
   );
 
   await sessionManager.current.createSession();
-  console.log("Session started successfully");
+  logger.info("Session started successfully");
   await handleExecute(sessionManager.current, instruction);
 }
 
@@ -74,6 +79,10 @@ export async function handleResume(
   providerFactory: ProviderFactory,
   options: MCPilotCLIOptions,
 ): Promise<void> {
+  // Configure logger with CLI log level
+  const newLogger = createLogger(options.logLevel);
+  Object.assign(logger, newLogger);
+
   const config = await createConfig(options);
   const provider = await createProvider(providerFactory, config, options);
 
@@ -88,7 +97,7 @@ export async function handleResume(
   }
 
   await sessionManager.resumeSession(logPath);
-  console.log("Session resumed successfully");
+  logger.info("Session resumed successfully");
   await handleExecute(sessionManager, instruction);
 }
 

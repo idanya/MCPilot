@@ -20,6 +20,7 @@ import { TextBlock } from "@anthropic-ai/sdk/resources/index.mjs";
 import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { ApiStreamMessageStop } from "../../stream.ts";
+import { logger } from "../../../services/logger/index.ts";
 
 // Default retry configuration
 const DEFAULT_MAX_RETRIES = 3;
@@ -56,7 +57,7 @@ export class AnthropicProvider extends BaseLLMProvider {
     while (attempt <= this.maxRetries) {
       try {
         const options = this.createRequestOptions(context);
-        console.log(
+        logger.info(
           `Sending request to Anthropic... (attempt ${attempt + 1}/${this.maxRetries + 1})`,
         );
 
@@ -81,7 +82,7 @@ export class AnthropicProvider extends BaseLLMProvider {
           yield processedChunk;
         }
 
-        console.log("Request completed");
+        logger.info("Request completed");
         return;
       } catch (error) {
         lastError = error;
@@ -92,7 +93,7 @@ export class AnthropicProvider extends BaseLLMProvider {
 
         // Calculate backoff time using exponential backoff
         const backoffTime = this.calculateBackoff(attempt);
-        console.log(
+        logger.warn(
           `Request failed. Retrying in ${backoffTime}ms... (attempt ${attempt + 1}/${this.maxRetries})`,
         );
         await this.delay(backoffTime);
@@ -119,54 +120,33 @@ export class AnthropicProvider extends BaseLLMProvider {
   }
 
   protected async sendRequest(context: Context): Promise<AnthropicResponse> {
-    let attempt = 0;
-    let lastError: any;
+    try {
+      const textBlock: TextBlock = {
+        citations: [],
+        text: "",
+        type: "text",
+      };
 
-    while (attempt <= this.maxRetries) {
-      try {
-        const textBlock: TextBlock = {
-          citations: [],
-          text: "",
-          type: "text",
-        };
+      const response: AnthropicResponse = {
+        content: [textBlock],
+        id: "",
+        model: "",
+        usage: {
+          input_tokens: 0,
+          output_tokens: 0,
+        },
+      };
 
-        const response: AnthropicResponse = {
-          content: [textBlock],
-          id: "",
-          model: "",
-          usage: {
-            input_tokens: 0,
-            output_tokens: 0,
-          },
-        };
-
-        console.log(
-          `Sending request to Anthropic... (attempt ${attempt + 1}/${this.maxRetries + 1})`,
-        );
-        const stream = this.sendStreamedRequest(context);
-        const iterator = stream[Symbol.asyncIterator]();
-        for await (const chunk of iterator) {
-          this.updateResponseFromChunk(response, textBlock, chunk);
-        }
-
-        return response;
-      } catch (error) {
-        lastError = error;
-
-        if (!this.isRetryableError(error) || attempt >= this.maxRetries) {
-          throw this.handleAnthropicError(error);
-        }
-
-        const backoffTime = this.calculateBackoff(attempt);
-        console.log(
-          `Request failed. Retrying in ${backoffTime}ms... (attempt ${attempt + 1}/${this.maxRetries})`,
-        );
-        await this.delay(backoffTime);
-        attempt++;
+      const stream = this.sendStreamedRequest(context);
+      const iterator = stream[Symbol.asyncIterator]();
+      for await (const chunk of iterator) {
+        this.updateResponseFromChunk(response, textBlock, chunk);
       }
-    }
 
-    throw this.handleAnthropicError(lastError);
+      return response;
+    } catch (error) {
+      throw this.handleAnthropicError(error);
+    }
   }
 
   protected async parseResponse(
@@ -267,7 +247,7 @@ export class AnthropicProvider extends BaseLLMProvider {
   }
 
   private handleAnthropicError(error: any): MCPilotError {
-    console.log("Anthropic error:", error);
+    logger.error("Anthropic error:", error);
     const anthropicError = error.response?.data as AnthropicError;
     return new MCPilotError(
       anthropicError?.error?.message || "Unknown Anthropic error",
@@ -390,7 +370,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         };
 
       case "text":
-        console.log(chunk.content_block.text);
+        logger.debug(chunk.content_block.text);
         return {
           type: "text",
           text: chunk.content_block.text,
