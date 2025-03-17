@@ -23,6 +23,7 @@ import {
 } from "./types.ts";
 import { McpServerConfig, validateServerState } from "../config/mcp-schema.ts";
 import { ToolCatalogBuilder } from "./tool-catalog.ts";
+import { logger } from "../logger/index.ts";
 
 interface ConnectionError extends Error {
   code: string;
@@ -121,12 +122,12 @@ export class McpHub {
 
       // Set up error handling
       transport.onerror = async (error) => {
-        console.error(`Transport error for ${name}:`, error);
+        logger.error(`Transport error for ${name}:`, error);
         await this.handleTransportError(name, error);
       };
 
       transport.onclose = async () => {
-        console.error(`Transport closed for ${name}`);
+        logger.error(`Transport closed for ${name}`);
         await this.handleTransportClose(name);
       };
 
@@ -196,7 +197,7 @@ export class McpHub {
   ): Promise<void> {
     const stderrStream = transport.stderr;
     if (!stderrStream) {
-      console.error(`No stderr stream for ${serverName}`);
+      logger.error(`No stderr stream for ${serverName}`);
       return;
     }
 
@@ -295,7 +296,7 @@ export class McpHub {
         return aIndex - bIndex;
       });
     } catch (error) {
-      console.error("Failed to notify server changes:", error);
+      logger.error("Failed to notify server changes:", error);
     }
   }
 
@@ -344,7 +345,7 @@ export class McpHub {
       try {
         await this.connectToServer(name, config);
       } catch (error) {
-        console.error(
+        logger.error(
           `Failed to ${current ? "update" : "create"} server ${name}:`,
           error,
         );
@@ -382,7 +383,7 @@ export class McpHub {
       await connection.transport.close();
       await connection.client.close();
     } catch (error) {
-      console.error(`Failed to close transport for ${name}:`, error);
+      logger.error(`Failed to close transport for ${name}:`, error);
     }
 
     this.connections = this.connections.filter(
@@ -408,7 +409,7 @@ export class McpHub {
       // const templates = await this.fetchResourceTemplatesList(serverName);
       // connection.server.resourceTemplates = templates;
     } catch (error) {
-      console.error(`Failed to fetch capabilities for ${serverName}:`, error);
+      logger.error(`Failed to fetch capabilities for ${serverName}:`, error);
       throw error;
     }
   }
@@ -451,7 +452,7 @@ export class McpHub {
         };
       });
     } catch (error) {
-      console.error(`Failed to fetch tools for ${serverName}:`, error);
+      logger.error(`Failed to fetch tools for ${serverName}:`, error);
       return [];
     }
   }
@@ -483,7 +484,7 @@ export class McpHub {
         };
       });
     } catch (error) {
-      console.error(`Failed to fetch resources for ${serverName}:`, error);
+      logger.error(`Failed to fetch resources for ${serverName}:`, error);
       return [];
     }
   }
@@ -519,7 +520,7 @@ export class McpHub {
         },
       );
     } catch (error) {
-      console.error(
+      logger.error(
         `Failed to fetch resource templates for ${serverName}:`,
         error,
       );
@@ -600,7 +601,7 @@ export class McpHub {
       }
     }
 
-    console.log(`Calling tool '${toolName}' on server '${serverName}'...`);
+    logger.info(`Calling tool '${toolName}' on server '${serverName}'...`);
 
     const config = connection.server.config;
     const timeout =
@@ -682,7 +683,7 @@ export class McpHub {
 
       await this.connectToServer(serverName, config);
     } catch (error) {
-      console.error(`Failed to restart connection for ${serverName}:`, error);
+      logger.error(`Failed to restart connection for ${serverName}:`, error);
       throw error;
     } finally {
       this.isConnecting = false;

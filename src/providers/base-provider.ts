@@ -5,6 +5,7 @@
 import { Context } from "../interfaces/base/context.ts";
 import { Response } from "../interfaces/base/response.ts";
 import { ILLMProvider, ProviderConfig } from "../interfaces/llm/provider.ts";
+import { logger } from "../services/logger/index.ts";
 
 export abstract class BaseLLMProvider implements ILLMProvider {
   protected config: ProviderConfig;
@@ -26,13 +27,13 @@ export abstract class BaseLLMProvider implements ILLMProvider {
     }
 
     try {
-      console.log("Processing message...");
+      logger.debug("Processing message...");
       const formattedContext = await this.formatContext(context);
-      console.log("Sending request...");
+      logger.debug("Sending request...");
       const response = await this.sendRequest(formattedContext);
-      console.log("Parsing response...");
+      logger.debug("Parsing response...");
       const parsedResponse = await this.parseResponse(response);
-      console.log("Validating response...");
+      logger.debug("Validating response...");
       return this.validateResponse(parsedResponse);
     } catch (error) {
       throw this.handleError(error);

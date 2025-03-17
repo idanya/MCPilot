@@ -19,6 +19,7 @@ import { SessionManager } from "../services/session/index.ts";
 import { handleError, handleResume, handleStart } from "./actions.ts";
 import { MCPilotCLIOptions } from "./types.ts";
 import { readFileSync } from "fs";
+import { logger } from "../services/logger/index.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -92,14 +93,14 @@ class MCPilotCLI {
       .action((instruction: string | undefined, options: MCPilotCLIOptions) => {
         // Validate instruction sources
         if (instruction && options.instructionsFile) {
-          console.error(
+          logger.error(
             "Error: Cannot use both instruction argument and --instructions-file flag",
           );
           process.exit(1);
         }
 
         if (!instruction && !options.instructionsFile) {
-          console.error(
+          logger.error(
             "Error: Must provide either instruction argument or --instructions-file flag",
           );
           process.exit(1);
@@ -110,7 +111,7 @@ class MCPilotCLI {
           try {
             finalInstruction = readFileSync(options.instructionsFile, "utf-8");
           } catch (error: any) {
-            console.error(
+            logger.error(
               `Error reading instructions file: ${error?.message || "Unknown error"}`,
             );
             process.exit(1);
@@ -158,7 +159,10 @@ class MCPilotCLI {
 
 export function runCLI() {
   const cli = new MCPilotCLI(true);
-  return cli.run().catch(console.error);
+  return cli.run().catch((error) => {
+    logger.error("Unexpected CLI error:", error);
+    process.exit(1);
+  });
 }
 
 runCLI();

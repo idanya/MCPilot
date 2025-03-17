@@ -20,6 +20,7 @@ import {
 } from "./types.ts";
 import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
+import { logger } from "../../../services/logger/index.ts";
 
 export class OpenAIProvider extends BaseLLMProvider {
   private apiClient: AxiosInstance;
@@ -42,7 +43,7 @@ export class OpenAIProvider extends BaseLLMProvider {
   async *sendStreamedRequest(context: Context): ApiStream {
     const messages = this.formatMessages(context);
     try {
-      console.log("Sending request to OpenAI...");
+      logger.info("Sending request to OpenAI...");
 
       const response = await this.apiClient.post(
         "/chat/completions",
@@ -83,13 +84,13 @@ export class OpenAIProvider extends BaseLLMProvider {
                 yield processedChunk;
               }
             } catch (e) {
-              console.error("Error parsing stream chunk:", e);
+              logger.error("Error parsing stream chunk:", e);
             }
           }
         }
       }
 
-      console.log("Request completed");
+      logger.info("Request completed");
     } catch (error) {
       throw this.handleOpenAIError(error);
     }
@@ -218,7 +219,7 @@ export class OpenAIProvider extends BaseLLMProvider {
   }
 
   private handleOpenAIError(error: any): MCPilotError {
-    console.error("OpenAI error:", error);
+    logger.error("OpenAI error:", error);
     const openAIError = error.response?.data as OpenAIError;
     return new MCPilotError(
       openAIError?.error?.message || "Unknown OpenAI error",

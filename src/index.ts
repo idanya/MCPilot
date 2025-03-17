@@ -8,6 +8,7 @@ import { SessionManager } from "./services/session/index.ts";
 import { ProviderFactory } from "./providers/provider-factory.ts";
 import { ILLMProvider } from "./interfaces/llm/provider.ts";
 import { MCPilotConfig } from "./interfaces/config/types.ts";
+import { createLogger, logger } from "./services/logger/index.ts";
 
 export {
   SessionManager,
@@ -88,6 +89,10 @@ export const createSession = async (options: {
     },
   };
 
+  // Configure logger with session log level
+  const newLogger = createLogger(config.logging.level.toLowerCase());
+  Object.assign(logger, newLogger);
+
   const manager = new SessionManager(config, options.provider);
 
   manager.createSession();
@@ -118,6 +123,10 @@ export const resumeSession = async (
     },
   };
 
+  // Configure logger with default log level
+  const newLogger = createLogger(config.logging.level.toLowerCase());
+  Object.assign(logger, newLogger);
+
   const manager = new SessionManager(config, options.provider);
   manager.resumeSession(logPath);
   return manager;
@@ -131,12 +140,12 @@ export const createProviderFactory = () => {
 // Default error handler
 export const defaultErrorHandler = (error: Error | MCPilotError) => {
   if (error instanceof MCPilotError) {
-    console.error(`MCPilot Error: ${error.message} (${error.code})`);
+    logger.error(`MCPilot Error: ${error.message} (${error.code})`);
     if (error.details) {
-      console.error("Details:", error.details);
+      logger.error("Details:", error.details);
     }
   } else {
-    console.error("Unexpected error:", error);
+    logger.error("Unexpected error:", error);
   }
 };
 

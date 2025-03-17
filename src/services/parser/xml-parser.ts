@@ -2,6 +2,8 @@
  * XML-style tool request parser
  */
 
+import { logger } from "../logger/index.ts";
+
 export interface XmlNode {
   tag: string;
   content: string | XmlNode[];
@@ -31,7 +33,7 @@ export class XmlParser {
         requests.push(request);
       } catch (error) {
         if (error instanceof XmlParseError) {
-          console.warn(`Skipping invalid tool request: ${error.message}`);
+          logger.warn(`Skipping invalid tool request: ${error.message}`);
         } else {
           throw error;
         }

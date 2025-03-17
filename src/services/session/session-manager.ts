@@ -26,6 +26,7 @@ import { ToolRequestParser } from "../parser/tool-request-parser.ts";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
 import { ContextManager } from "./context-manager.ts";
 import { ParsedToolRequest } from "../parser/xml-parser.ts";
+import { logger } from "../logger/index.ts";
 
 export class SessionManager implements ISessionManager {
   private currentSession: Session | null = null;
@@ -351,7 +352,7 @@ export class SessionManager implements ISessionManager {
 
       return sessionData;
     } catch (error: unknown) {
-      console.error("Session load error:", error);
+      logger.error("Session load error:", error);
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
       throw new MCPilotError(
@@ -389,7 +390,7 @@ export class SessionManager implements ISessionManager {
         try {
           return JSON.parse(line);
         } catch (e: unknown) {
-          console.error("Failed to parse log line:", line);
+          logger.error("Failed to parse log line:", line);
           const errorMessage = e instanceof Error ? e.message : "Unknown error";
           throw new Error(`Invalid JSON in log file: ${errorMessage}`);
         }
@@ -495,9 +496,9 @@ export class SessionManager implements ISessionManager {
     try {
       const context = this.contextManager.getContext();
 
-      console.log("Processing message with tools....");
+      logger.debug("Processing message with tools....");
       let response = await this.provider.processMessage(context);
-      console.log("Response: ", response.id);
+      logger.debug("Response:", response.id);
 
       // Check for tool requests in response
       if (!response.content.text) {
@@ -551,7 +552,7 @@ export class SessionManager implements ISessionManager {
     try {
       return await this.toolRequestParser.parseRequest(responseText);
     } catch (error) {
-      console.log("Error processing message with tools: ", error);
+      logger.error("Error processing message with tools:", error);
       await this.executeMessage(
         `Error processing message with tools: ${error}`,
       );
@@ -575,12 +576,12 @@ export class SessionManager implements ISessionManager {
           request.arguments,
         );
 
-        console.log("Tool call result: ", result);
+        logger.debug("Tool call result:", result);
 
         const toolMessage = this.createToolCallMessage(request, result);
         await this.executeMessage(toolMessage.content);
       } catch (error) {
-        console.error("Tool call error:", error);
+        logger.error("Tool call error:", error);
         throw error;
       }
     }
