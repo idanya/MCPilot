@@ -60,7 +60,8 @@ class MCPilotCLI {
     this.program
       .command("start")
       .description("Start a new session")
-      .argument("<instruction>", "Instruction text for the LLM")
+      .argument("[instruction]", "Instruction text for the LLM")
+      .option("-i, --instructions-file <path>", "Path to instructions file")
       .option("-m, --model <name>", "Model to use")
       .option(
         "-l, --log-level <level>",
@@ -88,11 +89,38 @@ class MCPilotCLI {
         "Automatically approve MCP tool calls without prompting",
         false,
       )
-      .action((instruction: string, options: MCPilotCLIOptions) => {
+      .action((instruction: string | undefined, options: MCPilotCLIOptions) => {
+        // Validate instruction sources
+        if (instruction && options.instructionsFile) {
+          console.error(
+            "Error: Cannot use both instruction argument and --instructions-file flag",
+          );
+          process.exit(1);
+        }
+
+        if (!instruction && !options.instructionsFile) {
+          console.error(
+            "Error: Must provide either instruction argument or --instructions-file flag",
+          );
+          process.exit(1);
+        }
+
+        let finalInstruction = instruction;
+        if (options.instructionsFile) {
+          try {
+            finalInstruction = readFileSync(options.instructionsFile, "utf-8");
+          } catch (error: any) {
+            console.error(
+              `Error reading instructions file: ${error?.message || "Unknown error"}`,
+            );
+            process.exit(1);
+          }
+        }
+
         handleStart(
           this.sessionManager,
           this.providerFactory,
-          instruction,
+          finalInstruction!,
           options,
         ).catch(handleError);
       });

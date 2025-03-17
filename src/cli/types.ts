@@ -6,4 +6,5 @@ export interface MCPilotCLIOptions {
   rolesConfig?: string;
   workingDirectory?: string;
   autoApproveTools?: boolean;
+  instructionsFile?: string;
 }
