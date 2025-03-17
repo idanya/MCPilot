@@ -72,7 +72,7 @@ class MCPilotCLI {
       .option(
         "-c, --config <path>",
         "Path to config file",
-        "./mcpilot.config.json",
+        "./.mcpilot.config.json",
       )
       .option("-r, --role <name>", "Role to use for the session")
       .option(

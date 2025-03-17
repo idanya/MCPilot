@@ -73,25 +73,6 @@ export class ToolRequestParser {
       });
     }
 
-    // Convert XML arguments to proper types based on schema
-    // const args = Object.fromEntries(
-    //   Object.entries(request.arguments).map(([key, value]) => {
-    //     // Try to parse JSON if the value looks like JSON
-    //     if (
-    //       (value.startsWith("[") && value.endsWith("]")) ||
-    //       (value.startsWith("{") && value.endsWith("}"))
-    //     ) {
-    //       try {
-    //         return [key, JSON.parse(value)];
-    //       } catch {
-    //         // If parsing fails, use the raw string value
-    //         return [key, value];
-    //       }
-    //     }
-    //     return [key, value];
-    //   })
-    // );
-
     // Validate the converted arguments
     const result = this.paramValidator.validate(
       request.arguments,

@@ -2,7 +2,8 @@
  * OpenAI provider implementation
  */
 
-import axios, { AxiosInstance } from "axios";
+import OpenAI from "openai";
+
 import { Context } from "../../../interfaces/base/context.ts";
 import { MessageType } from "../../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../../interfaces/base/response.ts";
@@ -23,16 +24,12 @@ import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { logger } from "../../../services/logger/index.ts";
 
 export class OpenAIProvider extends BaseLLMProvider {
-  private apiClient: AxiosInstance;
+  private client: OpenAI;
 
   constructor(config: ProviderConfig) {
     super(config);
-    this.apiClient = axios.create({
-      baseURL: this.config.apiEndpoint || this.getDefaultEndpoint(),
-      headers: {
-        Authorization: `Bearer ${this.config.apiKey || process.env.OPENAI_API_KEY}`,
-        "Content-Type": "application/json",
-      },
+    this.client = new OpenAI({
+      apiKey: this.config.apiKey || process.env.OPENAI_API_KEY,
     });
   }
 
@@ -45,51 +42,30 @@ export class OpenAIProvider extends BaseLLMProvider {
     try {
       logger.info("Sending request to OpenAI...");
 
-      const response = await this.apiClient.post(
-        "/chat/completions",
-        {
-          model: this.config.modelName,
-          messages,
-          max_tokens: this.config.maxTokens || this.getDefaultMaxTokens(),
-          temperature: this.config.temperature ?? this.getDefaultTemperature(),
-          stream: true,
-        },
-        {
-          responseType: "stream",
-        },
-      );
+      const stream = await this.client.chat.completions.create({
+        model: this.config.modelName,
+        messages,
+        max_tokens: this.config.maxTokens || this.getDefaultMaxTokens(),
+        temperature: this.config.temperature ?? this.getDefaultTemperature(),
+        stream: true,
+      });
 
       let currentText = "";
       let inputTokens = 0;
       let outputTokens = 0;
 
-      for await (const chunk of response.data) {
-        const lines = chunk.toString().split("\n").filter(Boolean);
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const data = line.slice(5);
-            if (data === "[DONE]") {
-              yield { type: "message_stop" };
-              return;
-            }
-
-            try {
-              const parsed = JSON.parse(data) as OpenAIStreamChunk;
-              const processedChunk = this.processStreamChunk(parsed);
-              if (processedChunk) {
-                if (processedChunk.type === "text") {
-                  currentText += processedChunk.text;
-                  outputTokens += 1; // Approximate token count
-                }
-                yield processedChunk;
-              }
-            } catch (e) {
-              logger.error("Error parsing stream chunk:", e);
-            }
+      for await (const chunk of stream) {
+        const processedChunk = this.processStreamChunk(chunk);
+        if (processedChunk) {
+          if (processedChunk.type === "text") {
+            currentText += processedChunk.text;
+            outputTokens += 1; // Approximate token count
           }
+          yield processedChunk;
         }
       }
 
+      yield { type: "message_stop" };
       logger.info("Request completed");
     } catch (error) {
       throw this.handleOpenAIError(error);
@@ -189,8 +165,10 @@ export class OpenAIProvider extends BaseLLMProvider {
     };
   }
 
-  private formatMessages(context: Context): OpenAIMessage[] {
-    const messages: OpenAIMessage[] = [];
+  private formatMessages(
+    context: Context,
+  ): OpenAI.Chat.ChatCompletionMessageParam[] {
+    const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
     if (context.systemPrompt) {
       messages.push({
@@ -220,9 +198,16 @@ export class OpenAIProvider extends BaseLLMProvider {
 
   private handleOpenAIError(error: any): MCPilotError {
     logger.error("OpenAI error:", error);
-    const openAIError = error.response?.data as OpenAIError;
+    if (error instanceof OpenAI.APIError) {
+      return new MCPilotError(
+        error.message || "Unknown OpenAI error",
+        "OPENAI_API_ERROR",
+        ErrorSeverity.HIGH,
+        { originalError: error },
+      );
+    }
     return new MCPilotError(
-      openAIError?.error?.message || "Unknown OpenAI error",
+      "Unknown OpenAI error",
       "OPENAI_API_ERROR",
       ErrorSeverity.HIGH,
       { originalError: error },
@@ -230,7 +215,7 @@ export class OpenAIProvider extends BaseLLMProvider {
   }
 
   private processStreamChunk(
-    chunk: OpenAIStreamChunk,
+    chunk: OpenAI.Chat.ChatCompletionChunk,
   ): ApiStreamChunk | undefined {
     const choice = chunk.choices[0];
     if (!choice) return undefined;

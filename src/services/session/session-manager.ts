@@ -554,7 +554,7 @@ export class SessionManager implements ISessionManager {
     } catch (error) {
       logger.error("Error processing message with tools:", error);
       await this.executeMessage(
-        `Error processing message with tools: ${error}`,
+        `Error processing message with tools: ${JSON.stringify(error)}`,
       );
       return [];
     }

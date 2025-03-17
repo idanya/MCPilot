@@ -149,7 +149,7 @@ export class ParameterValidator {
     }
 
     // Validate number constraints
-    if (property.type === "number") {
+    if (property.type === "number" || property.type === "integer") {
       const numValue = Number(value);
       if (property.minimum !== undefined && numValue < property.minimum) {
         errors.push({
@@ -264,6 +264,7 @@ export class ParameterValidator {
         case "string":
           return typeof value === "string";
         case "number":
+        case "integer":
           return typeof value === "number" || !isNaN(Number(value));
         case "boolean":
           return (

@@ -81,7 +81,7 @@ export class McpHub {
       await this.updateServerConnections(this.mcpServers);
     } catch (error) {
       const connectionError: ConnectionError = new Error(
-        "Failed to initialize MCP servers"
+        "Failed to initialize MCP servers",
       ) as ConnectionError;
       connectionError.code = "INIT_FAILED";
       connectionError.details = error;
@@ -94,7 +94,7 @@ export class McpHub {
    */
   private async connectToServer(
     name: string,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<void> {
     // Remove existing connection if it exists
     await this.deleteConnection(name);
@@ -107,7 +107,7 @@ export class McpHub {
         },
         {
           capabilities: {},
-        }
+        },
       );
 
       const transport = new StdioClientTransport({
@@ -156,7 +156,7 @@ export class McpHub {
       const validationResult = validateServerState(serverState);
       if (!validationResult.success) {
         throw new Error(
-          `Invalid server state: ${validationResult.error.message}`
+          `Invalid server state: ${validationResult.error.message}`,
         );
       }
 
@@ -193,7 +193,7 @@ export class McpHub {
    */
   private async setupStderrHandling(
     transport: StdioClientTransport,
-    serverName: string
+    serverName: string,
   ): Promise<void> {
     const stderrStream = transport.stderr;
     if (!stderrStream) {
@@ -210,7 +210,7 @@ export class McpHub {
    */
   private async handleTransportError(
     serverName: string,
-    error: Error
+    error: Error,
   ): Promise<void> {
     const connection = this.findConnection(serverName);
     if (connection) {
@@ -236,7 +236,7 @@ export class McpHub {
    */
   private async handleStderrOutput(
     serverName: string,
-    output: string
+    output: string,
   ): Promise<void> {
     const connection = this.findConnection(serverName);
     if (!connection) return;
@@ -252,7 +252,7 @@ export class McpHub {
    */
   private async handleConnectionError(
     serverName: string,
-    error: unknown
+    error: unknown,
   ): Promise<void> {
     const connection = this.findConnection(serverName);
     if (!connection) return;
@@ -260,7 +260,7 @@ export class McpHub {
     connection.server.status = "disconnected";
     await this.appendErrorMessage(
       connection,
-      error instanceof Error ? error.message : String(error)
+      error instanceof Error ? error.message : String(error),
     );
   }
 
@@ -276,7 +276,7 @@ export class McpHub {
    */
   private async appendErrorMessage(
     connection: McpConnection,
-    message: string
+    message: string,
   ): Promise<void> {
     connection.server.error = connection.server.error
       ? `${connection.server.error}\n${message}`
@@ -303,14 +303,14 @@ export class McpHub {
    * Update server connections based on configuration
    */
   public async updateServerConnections(
-    servers: Record<string, McpServerConfig>
+    servers: Record<string, McpServerConfig>,
   ): Promise<void> {
     this.isConnecting = true;
 
     try {
       // Remove deleted servers
       const currentNames = new Set(
-        this.connections.map((conn) => conn.server.name)
+        this.connections.map((conn) => conn.server.name),
       );
       const newNames = new Set(Object.keys(servers));
 
@@ -335,7 +335,7 @@ export class McpHub {
    */
   private async updateSingleServer(
     name: string,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<void> {
     const current = this.findConnection(name);
     const currentConfig = current?.server.config;
@@ -346,7 +346,7 @@ export class McpHub {
       } catch (error) {
         logger.error(
           `Failed to ${current ? "update" : "create"} server ${name}:`,
-          error
+          error,
         );
       }
     }
@@ -357,7 +357,7 @@ export class McpHub {
    */
   private hasConfigChanged(
     currentConfig: string | Record<string, any> | undefined,
-    newConfig: McpServerConfig
+    newConfig: McpServerConfig,
   ): boolean {
     if (!currentConfig) return true;
     const parsedConfig =
@@ -365,7 +365,7 @@ export class McpHub {
         ? JSON.parse(currentConfig)
         : currentConfig;
     return !Object.entries(newConfig).every(
-      ([key, value]) => parsedConfig[key] === value
+      ([key, value]) => parsedConfig[key] === value,
     );
   }
 
@@ -386,7 +386,7 @@ export class McpHub {
     }
 
     this.connections = this.connections.filter(
-      (conn) => conn.server.name !== name
+      (conn) => conn.server.name !== name,
     );
   }
 
@@ -423,7 +423,7 @@ export class McpHub {
     try {
       const response = await connection.client.request(
         { method: "tools/list" },
-        ListToolsResultSchema
+        ListToolsResultSchema,
       );
 
       const alwaysAllowConfig = this.mcpServers[serverName]?.alwaysAllow || [];
@@ -466,7 +466,7 @@ export class McpHub {
     try {
       const response = await connection.client.request(
         { method: "resources/list" },
-        ListResourcesResultSchema
+        ListResourcesResultSchema,
       );
 
       return (response?.resources || []).map((resource): McpResource => {
@@ -492,7 +492,7 @@ export class McpHub {
    * Fetch list of available resource templates from server
    */
   private async fetchResourceTemplatesList(
-    serverName: string
+    serverName: string,
   ): Promise<McpResourceTemplate[]> {
     const connection = this.findConnection(serverName);
     if (!connection) return [];
@@ -500,7 +500,7 @@ export class McpHub {
     try {
       const response = await connection.client.request(
         { method: "resources/templates/list" },
-        ListResourceTemplatesResultSchema
+        ListResourceTemplatesResultSchema,
       );
 
       return (response?.resourceTemplates || []).map(
@@ -516,12 +516,12 @@ export class McpHub {
             mimeType: template.mimeType,
             tags: (template.tags || []) as string[],
           };
-        }
+        },
       );
     } catch (error) {
       logger.error(
         `Failed to fetch resource templates for ${serverName}:`,
-        error
+        error,
       );
       return [];
     }
@@ -532,7 +532,7 @@ export class McpHub {
    */
   public async readResource(
     serverName: string,
-    uri: string
+    uri: string,
   ): Promise<McpResourceResponse> {
     const connection = this.findConnection(serverName);
     if (!connection) {
@@ -547,7 +547,7 @@ export class McpHub {
         method: "resources/read",
         params: { uri },
       },
-      ReadResourceResultSchema
+      ReadResourceResultSchema,
     );
 
     return {
@@ -557,7 +557,7 @@ export class McpHub {
           mimeType: content.mimeType as string | undefined,
           text: content.text as string | undefined,
           blob: content.blob as string | undefined,
-        })
+        }),
       ),
     };
   }
@@ -568,12 +568,12 @@ export class McpHub {
   public async callTool(
     serverName: string,
     toolName: string,
-    toolArguments?: Record<string, unknown>
+    toolArguments?: Record<string, unknown>,
   ): Promise<McpToolCallResponse> {
     const connection = this.findConnection(serverName);
     if (!connection) {
       throw new Error(
-        `No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`
+        `No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
       );
     }
     if (connection.server.disabled) {
@@ -590,7 +590,7 @@ export class McpHub {
       const answer = await new Promise<string>((resolve) => {
         readline.question(
           `Do you want to run tool '${toolName}' on server '${serverName}'? (Y/N) `,
-          resolve
+          resolve,
         );
       });
       readline.close();
@@ -615,7 +615,7 @@ export class McpHub {
         },
       },
       CallToolResultSchema,
-      { timeout }
+      { timeout },
     );
 
     return {

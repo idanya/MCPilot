@@ -1,7 +1,7 @@
 {
   "providers": {
     "openai": {
-      "model": "gpt-4",
+      "model": "gpt-4o",
       "temperature": 0.7,
       "maxTokens": 2048
     },
@@ -15,7 +15,7 @@
     "logDirectory": "./sessions",
     "contextSize": 4096,
     "maxQueueSize": 100,
-    "defaultProvider": "anthropic"
+    "defaultProvider": "openai"
   },
   "logging": {
     "level": "debug",
@@ -38,7 +38,7 @@
           "cli-mcp-server"
         ],
         "env": {
-          "ALLOWED_DIR": "/Users/idanyael/dev/evm-blockchain-tx-watcher",
+          "ALLOWED_DIR": "${PWD}",
           "ALLOWED_COMMANDS": "all",
           "ALLOWED_FLAGS": "all",
           "MAX_COMMAND_LENGTH": "1024",
@@ -47,12 +47,23 @@
         "enabled": true,
         "type": "stdio"
       },
+      "gitlab": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-gitlab"
+        ],
+        "env": {
+          "GITLAB_PERSONAL_ACCESS_TOKEN": "${PYPI_TOKEN}",
+          "GITLAB_API_URL": "https://gitlab.com/api/v4" 
+        }
+      },
       "fs": {
         "command": "npx",
         "args": [
           "-y",
           "@modelcontextprotocol/server-filesystem",
-          "/Users/idanyael/dev/evm-blockchain-tx-watcher"
+          "${PWD}"
         ],
         "enabled": true,
         "timeout": 3600,

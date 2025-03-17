@@ -139,14 +139,32 @@ export class AnthropicProvider extends BaseLLMProvider {
 
       const stream = this.sendStreamedRequest(context);
       const iterator = stream[Symbol.asyncIterator]();
+      let gotThinkingBlock = false;
       for await (const chunk of iterator) {
         this.updateResponseFromChunk(response, textBlock, chunk);
+        if (!gotThinkingBlock) {
+          const thinkingScope = this.extractThinkingContent(textBlock.text);
+          if (thinkingScope) {
+            logger.info(thinkingScope);
+            gotThinkingBlock = true;
+          }
+        }
       }
 
       return response;
     } catch (error) {
       throw this.handleAnthropicError(error);
     }
+  }
+
+  /**
+   * Extracts content between <thinking> XML tags
+   * @param text The input text to search for thinking tags
+   * @returns The content between thinking tags or empty string if not found
+   */
+  private extractThinkingContent(text: string): string {
+    const thinkingMatch = text.match(/<thinking>([\s\S]*?)<\/thinking>/);
+    return thinkingMatch ? thinkingMatch[1].trim() : "";
   }
 
   protected async parseResponse(

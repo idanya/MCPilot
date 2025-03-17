@@ -24,9 +24,29 @@ export class ConfigLoader {
 
   public async load(): Promise<MCPilotConfig> {
     try {
-      // Load from file if specified
+      // Handle configuration file loading
       if (this.options.configPath) {
+        // If config path is specified, use it directly and throw error if not found
         await this.loadFromFile(this.options.configPath);
+      } else {
+        // If no config path specified, search for .mcpilot.config.json recursively
+        try {
+          const configPath = await this.findConfigFile(process.cwd());
+          await this.loadFromFile(configPath);
+        } catch (error) {
+          if (
+            error instanceof MCPilotError &&
+            error.code === "CONFIG_NOT_FOUND"
+          ) {
+            throw error; // Re-throw config not found error
+          }
+          throw new MCPilotError(
+            "Failed to load configuration",
+            "CONFIG_LOAD_ERROR",
+            ErrorSeverity.CRITICAL,
+            { error },
+          );
+        }
       }
 
       // Apply environment variables
@@ -64,9 +84,46 @@ export class ConfigLoader {
     }
   }
 
+  private async findConfigFile(startDir: string): Promise<string> {
+    const configName = ".mcpilot.config.json";
+    let currentDir = startDir;
+
+    while (true) {
+      const configPath = path.join(currentDir, configName);
+      try {
+        await fs.promises.access(configPath);
+        return configPath;
+      } catch {
+        const parentDir = path.dirname(currentDir);
+        if (parentDir === currentDir) {
+          // Reached root directory
+          throw new MCPilotError(
+            "Configuration file not found",
+            "CONFIG_NOT_FOUND",
+            ErrorSeverity.HIGH,
+            { searchedPaths: [startDir] },
+          );
+        }
+        currentDir = parentDir;
+      }
+    }
+  }
+
   private async loadFromFile(filePath: string): Promise<void> {
     try {
       const resolvedPath = path.resolve(filePath);
+
+      try {
+        await fs.promises.access(resolvedPath);
+      } catch {
+        throw new MCPilotError(
+          "Configuration file not found",
+          "CONFIG_NOT_FOUND",
+          ErrorSeverity.HIGH,
+          { filePath: resolvedPath },
+        );
+      }
+
       const fileContent = await fs.promises.readFile(resolvedPath, "utf8");
 
       let fileConfig: Partial<MCPilotConfig>;
@@ -114,8 +171,36 @@ export class ConfigLoader {
     }
   }
 
+  private replaceEnvVars(obj: any): any {
+    if (typeof obj === "string") {
+      const envVarMatch = obj.match(/^\${([^}]+)}$/);
+      if (envVarMatch) {
+        const envVar = envVarMatch[1];
+        return process.env[envVar] || obj;
+      }
+      return obj;
+    }
+
+    if (Array.isArray(obj)) {
+      return obj.map((item) => this.replaceEnvVars(item));
+    }
+
+    if (obj && typeof obj === "object") {
+      const result: any = {};
+      for (const [key, value] of Object.entries(obj)) {
+        result[key] = this.replaceEnvVars(value);
+      }
+      return result;
+    }
+
+    return obj;
+  }
+
   private mergeConfig(source: Partial<MCPilotConfig>): void {
     if (!source) return;
+
+    // Process environment variables in the source config
+    source = this.replaceEnvVars(source);
 
     // Merge providers
     if (source.providers) {
