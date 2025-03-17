@@ -43,11 +43,6 @@ export interface RoleContext {
   name: string;
   definition: string;
   instructions: string;
-  constraints?: {
-    allowedCommands?: string[];
-    disallowedPaths?: string[];
-    maxContextSize?: number;
-  };
 }
 
 export interface ContextMetadata {

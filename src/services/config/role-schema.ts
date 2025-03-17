@@ -4,18 +4,10 @@
 
 import { z } from "zod";
 
-// Role constraints schema
-const roleConstraintsSchema = z.object({
-  allowedCommands: z.array(z.string()).optional(),
-  disallowedPaths: z.array(z.string()).optional(),
-  maxContextSize: z.number().positive().optional(),
-});
-
 // Individual role schema
 const roleSchema = z.object({
   definition: z.string().min(1),
   instructions: z.string().min(1),
-  constraints: roleConstraintsSchema.optional(),
 });
 
 // Main roles configuration schema

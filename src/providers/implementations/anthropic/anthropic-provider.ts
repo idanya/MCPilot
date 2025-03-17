@@ -20,14 +20,29 @@ import { TextBlock } from "@anthropic-ai/sdk/resources/index.mjs";
 import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { ApiStreamMessageStop } from "../../stream.ts";
+
+// Default retry configuration
+const DEFAULT_MAX_RETRIES = 3;
+const DEFAULT_INITIAL_BACKOFF_MS = 1000; // 1 second
+const RETRYABLE_ERROR_TYPES = [
+  "rate_limit_error",
+  "server_error",
+  "timeout_error",
+  "connection_error",
+];
+
 export class AnthropicProvider extends BaseLLMProvider {
   private client: Anthropic;
+  private maxRetries: number;
+  private initialBackoffMs: number;
 
   constructor(config: ProviderConfig) {
     super(config);
     this.client = new Anthropic({
       apiKey: this.config.apiKey || process.env.ANTHROPIC_API_KEY,
     });
+    this.maxRetries = DEFAULT_MAX_RETRIES;
+    this.initialBackoffMs = DEFAULT_INITIAL_BACKOFF_MS;
   }
 
   /**
@@ -35,35 +50,58 @@ export class AnthropicProvider extends BaseLLMProvider {
    * @param context The conversation context
    */
   async *sendStreamedRequest(context: Context): ApiStream {
-    const options = this.createRequestOptions(context);
-    try {
-      console.log("Sending request to Anthropic...");
+    let attempt = 0;
+    let lastError: any;
 
-      const streamResponse = await this.client.messages.create({
-        messages: options.messages,
-        model: options.model,
-        max_tokens: options.max_tokens,
-        thinking: { type: "enabled", budget_tokens: 1024 },
-        stream: true,
-        system: options.system,
-        temperature: options.temperature || 1,
-      });
+    while (attempt <= this.maxRetries) {
+      try {
+        const options = this.createRequestOptions(context);
+        console.log(
+          `Sending request to Anthropic... (attempt ${attempt + 1}/${this.maxRetries + 1})`,
+        );
 
-      for await (const chunk of streamResponse) {
-        const processedChunk = this.processStreamChunk(chunk);
-        if (processedChunk === undefined) {
-          continue;
+        const streamResponse = await this.client.messages.create({
+          messages: options.messages,
+          model: options.model,
+          max_tokens: options.max_tokens,
+          thinking: { type: "enabled", budget_tokens: 1024 },
+          stream: true,
+          system: options.system,
+          temperature: options.temperature || 1,
+        });
+
+        for await (const chunk of streamResponse) {
+          const processedChunk = this.processStreamChunk(chunk);
+          if (processedChunk === undefined) {
+            continue;
+          }
+          if (processedChunk?.type === "message_stop") {
+            return;
+          }
+          yield processedChunk;
         }
-        if (processedChunk?.type === "message_stop") {
-          return;
+
+        console.log("Request completed");
+        return;
+      } catch (error) {
+        lastError = error;
+
+        if (!this.isRetryableError(error) || attempt >= this.maxRetries) {
+          throw this.handleAnthropicError(error);
         }
-        yield processedChunk;
+
+        // Calculate backoff time using exponential backoff
+        const backoffTime = this.calculateBackoff(attempt);
+        console.log(
+          `Request failed. Retrying in ${backoffTime}ms... (attempt ${attempt + 1}/${this.maxRetries})`,
+        );
+        await this.delay(backoffTime);
+        attempt++;
       }
-
-      console.log("Request completed");
-    } catch (error) {
-      throw this.handleAnthropicError(error);
     }
+
+    // This should never be reached as we either return from the loop or throw an error
+    throw this.handleAnthropicError(lastError);
   }
 
   protected async initializeProvider(): Promise<void> {
@@ -81,29 +119,54 @@ export class AnthropicProvider extends BaseLLMProvider {
   }
 
   protected async sendRequest(context: Context): Promise<AnthropicResponse> {
-    const textBlock: TextBlock = {
-      citations: [],
-      text: "",
-      type: "text",
-    };
+    let attempt = 0;
+    let lastError: any;
 
-    const response: AnthropicResponse = {
-      content: [textBlock],
-      id: "",
-      model: "",
-      usage: {
-        input_tokens: 0,
-        output_tokens: 0,
-      },
-    };
+    while (attempt <= this.maxRetries) {
+      try {
+        const textBlock: TextBlock = {
+          citations: [],
+          text: "",
+          type: "text",
+        };
 
-    const stream = this.sendStreamedRequest(context);
-    const iterator = stream[Symbol.asyncIterator]();
-    for await (const chunk of iterator) {
-      this.updateResponseFromChunk(response, textBlock, chunk);
+        const response: AnthropicResponse = {
+          content: [textBlock],
+          id: "",
+          model: "",
+          usage: {
+            input_tokens: 0,
+            output_tokens: 0,
+          },
+        };
+
+        console.log(
+          `Sending request to Anthropic... (attempt ${attempt + 1}/${this.maxRetries + 1})`,
+        );
+        const stream = this.sendStreamedRequest(context);
+        const iterator = stream[Symbol.asyncIterator]();
+        for await (const chunk of iterator) {
+          this.updateResponseFromChunk(response, textBlock, chunk);
+        }
+
+        return response;
+      } catch (error) {
+        lastError = error;
+
+        if (!this.isRetryableError(error) || attempt >= this.maxRetries) {
+          throw this.handleAnthropicError(error);
+        }
+
+        const backoffTime = this.calculateBackoff(attempt);
+        console.log(
+          `Request failed. Retrying in ${backoffTime}ms... (attempt ${attempt + 1}/${this.maxRetries})`,
+        );
+        await this.delay(backoffTime);
+        attempt++;
+      }
     }
 
-    return response;
+    throw this.handleAnthropicError(lastError);
   }
 
   protected async parseResponse(
@@ -144,6 +207,8 @@ export class AnthropicProvider extends BaseLLMProvider {
   protected getDefaultOptions(): Record<string, any> {
     return {
       stream: true,
+      maxRetries: DEFAULT_MAX_RETRIES,
+      initialBackoffMs: DEFAULT_INITIAL_BACKOFF_MS,
     };
   }
 
@@ -228,6 +293,50 @@ export class AnthropicProvider extends BaseLLMProvider {
         return { type: "content_block_stop" };
     }
     return undefined;
+  }
+
+  /**
+   * Determines if an error is retryable
+   * @param error The error to check
+   * @returns boolean indicating if the error is retryable
+   */
+  private isRetryableError(error: any): boolean {
+    // Network errors
+    if (!error.response) {
+      return true;
+    }
+
+    const statusCode = error.response?.status;
+    // Retry on rate limits (429) and server errors (5xx)
+    if (statusCode === 429 || (statusCode >= 500 && statusCode < 600)) {
+      return true;
+    }
+
+    // Check Anthropic specific error types
+    const errorType = error.response?.data?.error?.type;
+    return errorType && RETRYABLE_ERROR_TYPES.includes(errorType);
+  }
+
+  /**
+   * Calculates backoff time using exponential backoff with jitter
+   * @param attempt Current attempt number (0-based)
+   * @returns Time to wait in milliseconds
+   */
+  private calculateBackoff(attempt: number): number {
+    // Exponential backoff: initialBackoff * 2^attempt + random jitter
+    const exponentialDelay = this.initialBackoffMs * Math.pow(2, attempt);
+    // Add jitter to avoid thundering herd problem (±20% randomness)
+    const jitter = exponentialDelay * 0.2 * (Math.random() - 0.5);
+    return Math.floor(exponentialDelay + jitter);
+  }
+
+  /**
+   * Helper method to create a delay
+   * @param ms Milliseconds to delay
+   * @returns Promise that resolves after the delay
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   private processMessageStart(chunk: any): ApiStreamChunk {

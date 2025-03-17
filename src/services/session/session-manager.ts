@@ -146,7 +146,6 @@ export class SessionManager implements ISessionManager {
       this.currentSession!.state = SessionState.PROCESSING;
 
       const newMessage = this.createMessageObject(message);
-      this.enforceRoleConstraints();
       await this.initializeRoleIfNeeded();
 
       this.addMessageToContext(newMessage);
@@ -299,31 +298,11 @@ export class SessionManager implements ISessionManager {
               role: {
                 definition: this.currentRole.definition,
                 instructions: this.currentRole.instructions,
-                constraints: this.currentRole.constraints,
               },
             },
           }
         : undefined,
     };
-  }
-
-  /**
-   * Enforce role constraints
-   */
-  private enforceRoleConstraints(): void {
-    if (this.currentRole?.constraints) {
-      const context = this.contextManager.getContext();
-      if (
-        this.currentRole.constraints.maxContextSize &&
-        context.messages.length >= this.currentRole.constraints.maxContextSize
-      ) {
-        throw new MCPilotError(
-          "Maximum context size exceeded for current role",
-          "CONTEXT_SIZE_EXCEEDED",
-          ErrorSeverity.HIGH,
-        );
-      }
-    }
   }
 
   /**

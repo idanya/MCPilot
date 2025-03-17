@@ -14,11 +14,6 @@ export type LogLevelStrings = keyof typeof LogLevel;
 export interface RoleConfig {
   definition: string;
   instructions: string;
-  constraints?: {
-    allowedCommands?: string[];
-    disallowedPaths?: string[];
-    maxContextSize?: number;
-  };
 }
 
 export interface RolesConfig {
