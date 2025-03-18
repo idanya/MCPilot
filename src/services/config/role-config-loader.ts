@@ -7,6 +7,7 @@ import * as path from "path";
 import { RoleConfig, RolesConfig } from "../../interfaces/config/types.ts";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 import { validateRolesConfig } from "./role-schema.ts";
+import { findConfigFileSync } from "./config-utils.ts";
 
 interface RoleConfigLoaderOptions {
   configPath?: string;
@@ -15,7 +16,7 @@ interface RoleConfigLoaderOptions {
 export class RoleConfigLoader {
   private config: RolesConfig;
   private readonly options: RoleConfigLoaderOptions;
-  private static DEFAULT_CONFIG_PATH = ".mcpilot-roles.json";
+  private static DEFAULT_CONFIG_NAME = ".mcpilot.roles.json";
 
   constructor(options: RoleConfigLoaderOptions = {}) {
     this.options = options;
@@ -24,16 +25,24 @@ export class RoleConfigLoader {
 
   public load(): RolesConfig {
     try {
-      const configPath =
-        this.options.configPath || RoleConfigLoader.DEFAULT_CONFIG_PATH;
-
-      // Check if config file exists
-      if (!fs.existsSync(configPath)) {
-        // Return empty config if file doesn't exist
-        return this.config;
+      if (this.options.configPath) {
+        // If config path is specified, use it directly
+        if (!fs.existsSync(this.options.configPath)) {
+          // Return empty config if file doesn't exist
+          return this.config;
+        }
+        this.loadFromFile(this.options.configPath);
+      } else {
+        // If no config path specified, search for the file
+        const configPath = findConfigFileSync(
+          process.cwd(),
+          RoleConfigLoader.DEFAULT_CONFIG_NAME,
+          false,
+        );
+        if (configPath) {
+          this.loadFromFile(configPath);
+        }
       }
-
-      this.loadFromFile(configPath);
       return this.config;
     } catch (error) {
       if (error instanceof MCPilotError) {

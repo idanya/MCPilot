@@ -12,6 +12,7 @@ import {
 } from "../../interfaces/config/types.ts";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 import { validateConfig } from "./config-schema.ts";
+import { findConfigFileSync } from "./config-utils.ts";
 
 export class ConfigLoader {
   private config: MCPilotConfig;
@@ -86,27 +87,9 @@ export class ConfigLoader {
 
   private async findConfigFile(startDir: string): Promise<string> {
     const configName = ".mcpilot.config.json";
-    let currentDir = startDir;
-
-    while (true) {
-      const configPath = path.join(currentDir, configName);
-      try {
-        await fs.promises.access(configPath);
-        return configPath;
-      } catch {
-        const parentDir = path.dirname(currentDir);
-        if (parentDir === currentDir) {
-          // Reached root directory
-          throw new MCPilotError(
-            "Configuration file not found",
-            "CONFIG_NOT_FOUND",
-            ErrorSeverity.HIGH,
-            { searchedPaths: [startDir] },
-          );
-        }
-        currentDir = parentDir;
-      }
-    }
+    const configPath = findConfigFileSync(startDir, configName, true);
+    // findConfigFileAsync will throw an error if the file is not found
+    return configPath as string;
   }
 
   private async loadFromFile(filePath: string): Promise<void> {
