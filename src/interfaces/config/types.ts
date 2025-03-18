@@ -46,10 +46,6 @@ export interface MCPilotConfig {
   };
   logging: {
     level: LogLevelStrings;
-    format: "json" | "text";
-    file?: string;
-    maxFiles?: number;
-    maxSize?: string;
   };
   mcp?: {
     servers?: Record<string, McpServerConfig>;
@@ -81,9 +77,6 @@ export const DEFAULT_CONFIG: MCPilotConfig = {
   },
   logging: {
     level: "INFO",
-    format: "json",
-    maxFiles: 5,
-    maxSize: "10mb",
   },
 };
 
@@ -117,13 +110,6 @@ export const DEFAULT_ENV_MAPPINGS: EnvironmentMapping = {
   MCPILOT_LOG_LEVEL: {
     path: ["logging", "level"],
     transform: (value: string) => value.toUpperCase(),
-  },
-  MCPILOT_LOG_FORMAT: {
-    path: ["logging", "format"],
-    transform: (value: string) => value.toLowerCase(),
-  },
-  MCPILOT_LOG_DIR: {
-    path: ["session", "logDirectory"],
   },
   MCPILOT_CONTEXT_SIZE: {
     path: ["session", "contextSize"],

@@ -3,57 +3,51 @@
  */
 
 import { LogLevel } from "./interfaces/base/session.ts";
-import { MCPilotError } from "./interfaces/error/types.ts";
-import { SessionManager } from "./services/session/index.ts";
-import { ProviderFactory } from "./providers/provider-factory.ts";
-import { ILLMProvider } from "./interfaces/llm/provider.ts";
 import { MCPilotConfig } from "./interfaces/config/types.ts";
+import { MCPilotError } from "./interfaces/error/types.ts";
+import { ILLMProvider } from "./interfaces/llm/provider.ts";
+import { ProviderFactory } from "./providers/provider-factory.ts";
 import { createLogger, logger } from "./services/logger/index.ts";
+import { SessionManager } from "./services/session/index.ts";
 
-export {
-  SessionManager,
-  ContextManager,
-  LogLevel,
-} from "./services/session/index.ts";
+export { LogLevel, SessionManager } from "./services/session/index.ts";
 
 export type { SessionState } from "./interfaces/base/state.ts";
 
 export type {
   Message,
   MessageType,
-  Context,
   Response,
   ResponseType,
 } from "./services/session/index.ts";
 
 // Provider system
 export {
-  BaseLLMProvider,
-  ProviderFactory,
-  OpenAIProvider,
   AnthropicProvider,
+  OpenAIProvider,
+  ProviderFactory,
   ProviderType,
 } from "./providers/index.ts";
 
 export type { ProviderConfig } from "./providers/index.ts";
 
 // Error handling
-export { MCPilotError, ErrorSeverity } from "./interfaces/error/types.ts";
+export { ErrorSeverity, MCPilotError } from "./interfaces/error/types.ts";
 
 // MCP entities
 export type {
-  McpConnection,
+  ConnectionStatus,
   McpConfig,
-  McpTool,
+  McpConnection,
   McpResource,
   McpServer,
-  ConnectionStatus,
+  McpTool,
 } from "./services/mcp/types.ts";
 
 // Configuration types
 export type {
-  OpenAIConfig,
   AnthropicConfig,
+  OpenAIConfig,
   ProviderConfigMap,
 } from "./providers/provider-config.ts";
 
@@ -82,7 +76,6 @@ export const createSession = async (options: {
         | "INFO"
         | "WARN"
         | "ERROR",
-      format: "json",
     },
     mcp: {
       servers: {},
@@ -116,7 +109,6 @@ export const resumeSession = async (
     },
     logging: {
       level: "INFO",
-      format: "json",
     },
     mcp: {
       servers: {},

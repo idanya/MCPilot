@@ -488,7 +488,7 @@ export class SessionManager {
 
     try {
       logger.debug("Processing message with tools....");
-      let response = await this.provider.processMessage(this.currentSession!);
+      const response = await this.provider.processMessage(this.currentSession!);
       logger.debug("Response:", response.id);
 
       // Check for tool requests in response
