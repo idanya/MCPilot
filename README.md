@@ -4,7 +4,7 @@ A general-purpose system that executes tasks using MCP tooling through prompt-ba
 
 ## Features
 
-- Multi-provider LLM support (OpenAI, Anthropic, Local models)
+- Multi-provider LLM support (OpenAI, Anthropic)
 - Role-based interactions with customizable behaviors
 - Robust session management with context preservation
 - MCP (Model Context Protocol) server integration
@@ -18,6 +18,36 @@ npm install mcpilot
 ```
 
 ## Quick Start
+
+### Programmatic Usage
+
+```javascript
+import { createSession, createProviderFactory, ProviderType } from 'mcpilot';
+
+// Create a provider factory and get a provider instance
+const factory = createProviderFactory();
+const provider = factory.create(ProviderType.OPENAI, {
+  name: 'openai',
+  modelName: 'gpt-4',
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// Initialize the provider
+await provider.initialize();
+
+// Create a new session with the provider
+const session = await createSession({
+  model: 'gpt-4',
+  provider: provider, // Provider is now required
+  logLevel: 'info'
+});
+
+// Execute a message
+const response = await session.executeMessage("Create a React component for a user profile");
+
+// Process the response
+console.log(response.content.text);
+```
 
 ### CLI Usage
 
@@ -37,6 +67,12 @@ mcpilot start -r architect "Design a new API"
 
 # Custom config and roles
 mcpilot start -c custom-config.json --roles-config custom-roles.json "Task description"
+
+# Set working directory
+mcpilot start -w /path/to/project "Create a component for this project"
+
+# Auto-approve MCP tool calls
+mcpilot start --auto-approve-tools "Generate code with MCP tools"
 ```
 
 Resume a previous session:
@@ -53,7 +89,7 @@ mcpilot resume ./sessions/session_123.log "Continue the previous task"
 - `--roles-config <path>` - Path to roles config (default: .mcpilot-roles.json)
 - `-w, --working-directory <path>` - Working directory for the session
 - `-i, --instructions-file <path>` - Load instructions from a file
-- `--auto-approve-tools` - Automatically approve MCP tool calls
+- `--auto-approve-tools` - Automatically approve MCP tool calls without prompting
 
 ## Configuration
 
@@ -73,13 +109,6 @@ mcpilot resume ./sessions/session_123.log "Continue the previous task"
       "temperature": 1,
       "maxTokens": 4096,
       "apiKey": "your-api-key"  // Optional, can use env var
-    },
-    "local": {  // Optional local model configuration
-      "model": "llama2",
-      "modelPath": "/path/to/model",
-      "quantization": "q4_0",
-      "contextSize": 4096,
-      "threads": 4
     }
   },
   "session": {
@@ -103,9 +132,10 @@ mcpilot resume ./sessions/session_123.log "Continue the previous task"
         "env": {
           "ENV_VAR": "value"
         },
-        "enabled": true,
+        "disabled": false,
         "timeout": 3600,
-        "type": "stdio"
+        "type": "stdio",
+        "alwaysAllow": ["tool-name-to-auto-approve"]
       }
     }
   }
@@ -147,7 +177,8 @@ MCPilot supports the Model Context Protocol (MCP) for tool integration. Configur
       "filesystem": {
         "command": "npx",
         "args": ["-y", "@modelcontextprotocol/server-filesystem", "${PWD}"],
-        "enabled": true
+        "disabled": false,
+        "alwaysAllow": ["list_files", "read_file"]
       },
       "gitlab": {
         "command": "npx",
@@ -155,12 +186,19 @@ MCPilot supports the Model Context Protocol (MCP) for tool integration. Configur
         "env": {
           "GITLAB_TOKEN": "your-token",
           "GITLAB_URL": "https://gitlab.com/api/v4"
-        }
+        },
+        "alwaysAllow": []
       }
     }
   }
 }
 ```
+
+### Auto-approving MCP Tools
+
+You can configure specific tools to be auto-approved for each server using the `alwaysAllow` array in the server configuration. This is useful for tools that are frequently used and don't require user confirmation each time.
+
+Alternatively, you can use the `--auto-approve-tools` CLI flag to auto-approve all tool calls for a session.
 
 ## Contributing
 
@@ -169,27 +207,3 @@ MCPilot supports the Model Context Protocol (MCP) for tool integration. Configur
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
-
-## Testing
-
-```bash
-# Run all tests
-npm test
-
-# Run specific test suite
-npm test -- --testPathPattern=session
-
-# Run with coverage
-npm test -- --coverage
-```
-
-## License
-
-ISC License
-
-## Credits
-
-Built with:
-- TypeScript
-- Node.js
-- Model Context Protocol
