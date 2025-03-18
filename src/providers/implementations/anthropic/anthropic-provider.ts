@@ -2,7 +2,7 @@
  * Anthropic provider implementation
  */
 import { Anthropic } from "@anthropic-ai/sdk";
-import { Context } from "../../../interfaces/base/context.ts";
+import { Session } from "../../../interfaces/base/session.ts";
 import { MessageType } from "../../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../../interfaces/base/response.ts";
 import {
@@ -10,7 +10,7 @@ import {
   MCPilotError,
 } from "../../../interfaces/error/types.ts";
 import { ProviderConfig } from "../../../interfaces/llm/provider.ts";
-import { BaseLLMProvider } from "../../base-provider.ts";
+import { BaseProvider } from "../../base-provider.ts";
 import {
   AnthropicError,
   AnthropicRequestOptions,
@@ -19,7 +19,6 @@ import {
 import { TextBlock } from "@anthropic-ai/sdk/resources/index.mjs";
 import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
-import { ApiStreamMessageStop } from "../../stream.ts";
 import { logger } from "../../../services/logger/index.ts";
 
 // Default retry configuration
@@ -32,33 +31,36 @@ const RETRYABLE_ERROR_TYPES = [
   "connection_error",
 ];
 
-export class AnthropicProvider extends BaseLLMProvider {
+export class AnthropicProvider extends BaseProvider {
   private client: Anthropic;
   private maxRetries: number;
   private initialBackoffMs: number;
 
   constructor(config: ProviderConfig) {
-    super(config);
+    super();
     this.client = new Anthropic({
-      apiKey: this.config.apiKey || process.env.ANTHROPIC_API_KEY,
+      apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY,
     });
+    this.config = config;
     this.maxRetries = DEFAULT_MAX_RETRIES;
     this.initialBackoffMs = DEFAULT_INITIAL_BACKOFF_MS;
   }
 
   /**
    * Sends a request to Anthropic and returns the response as a stream
-   * @param context The conversation context
+   * @param session The conversation session
    */
-  async *sendStreamedRequest(context: Context): ApiStream {
+  async *sendStreamedRequest(session: Session): ApiStream {
     let attempt = 0;
     let lastError: any;
 
     while (attempt <= this.maxRetries) {
       try {
-        const options = this.createRequestOptions(context);
+        const options = this.createRequestOptions(session);
         logger.info(
-          `Sending request to Anthropic... (attempt ${attempt + 1}/${this.maxRetries + 1})`,
+          `Sending request to Anthropic... (attempt ${attempt + 1}/${
+            this.maxRetries + 1
+          })`,
         );
 
         const streamResponse = await this.client.messages.create({
@@ -94,7 +96,9 @@ export class AnthropicProvider extends BaseLLMProvider {
         // Calculate backoff time using exponential backoff
         const backoffTime = this.calculateBackoff(attempt);
         logger.warn(
-          `Request failed. Retrying in ${backoffTime}ms... (attempt ${attempt + 1}/${this.maxRetries})`,
+          `Request failed. Retrying in ${backoffTime}ms... (attempt ${
+            attempt + 1
+          }/${this.maxRetries})`,
         );
         await this.delay(backoffTime);
         attempt++;
@@ -105,21 +109,12 @@ export class AnthropicProvider extends BaseLLMProvider {
     throw this.handleAnthropicError(lastError);
   }
 
-  protected async initializeProvider(): Promise<void> {
-    if (!this.config.apiKey) {
-      throw new MCPilotError(
-        "Anthropic API key is required",
-        "CONFIG_ERROR",
-        ErrorSeverity.HIGH,
-      );
-    }
+  public async processMessage(session: Session): Promise<Response> {
+    const response = await this.sendRequest(session);
+    return await this.parseResponse(response);
   }
 
-  protected async shutdownProvider(): Promise<void> {
-    // No specific cleanup needed for Anthropic
-  }
-
-  protected async sendRequest(context: Context): Promise<AnthropicResponse> {
+  protected async sendRequest(session: Session): Promise<AnthropicResponse> {
     try {
       const textBlock: TextBlock = {
         citations: [],
@@ -137,7 +132,7 @@ export class AnthropicProvider extends BaseLLMProvider {
         },
       };
 
-      const stream = this.sendStreamedRequest(context);
+      const stream = this.sendStreamedRequest(session);
       const iterator = stream[Symbol.asyncIterator]();
       let gotThinkingBlock = false;
       for await (const chunk of iterator) {
@@ -210,12 +205,12 @@ export class AnthropicProvider extends BaseLLMProvider {
     };
   }
 
-  private formatMessages(context: Context): Anthropic.Messages.MessageParam[] {
-    return context.messages.map(
+  private formatMessages(session: Session): Anthropic.Messages.MessageParam[] {
+    return session.messages.map(
       (message, index): Anthropic.Messages.MessageParam => {
         const role = this.mapMessageTypeToRole(message.type);
 
-        if (index === context.messages.length - 1) {
+        if (index === session.messages.length - 1) {
           return {
             role,
             content: [
@@ -247,16 +242,16 @@ export class AnthropicProvider extends BaseLLMProvider {
     }
   }
 
-  private createRequestOptions(context: Context): AnthropicRequestOptions {
+  private createRequestOptions(session: Session): AnthropicRequestOptions {
     return {
       model: this.config.modelName,
-      messages: this.formatMessages(context),
+      messages: this.formatMessages(session),
       max_tokens: this.config.maxTokens || this.getDefaultMaxTokens(),
       temperature: this.config.temperature ?? this.getDefaultTemperature(),
       system: [
         {
           type: "text",
-          text: context.systemPrompt,
+          text: session.systemPrompt,
           cache_control: { type: "ephemeral" },
         },
       ],

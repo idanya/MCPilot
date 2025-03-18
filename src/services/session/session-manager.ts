@@ -4,14 +4,14 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { Context } from "../../interfaces/base/context.ts";
+import { v4 as uuidv4 } from "uuid";
 import {
   Message,
   MessageType,
   ToolCallStatus,
 } from "../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../interfaces/base/response.ts";
-import { ISessionManager, Session } from "../../interfaces/base/session.ts";
+import { Session } from "../../interfaces/base/session.ts";
 import { SessionState } from "../../interfaces/base/state.ts";
 import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types.ts";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
@@ -20,18 +20,16 @@ import { RoleConfigLoader } from "../config/role-config-loader.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
 import { ToolRequestParser } from "../parser/tool-request-parser.ts";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
-import { ContextManager } from "./context-manager.ts";
 import { ParsedToolRequest } from "../parser/xml-parser.ts";
 import { logger } from "../logger/index.ts";
 
-export class SessionManager implements ISessionManager {
+export class SessionManager {
   private currentSession: Session | null = null;
   private toolRequestParser!: ToolRequestParser;
   private promptEnhancer!: SystemPromptEnhancer;
   private mcpHub!: McpHub;
   private roleLoader!: RoleConfigLoader;
   private currentRole?: RoleConfig;
-  private contextManager = new ContextManager();
 
   constructor(
     private readonly config: MCPilotConfig,
@@ -39,7 +37,7 @@ export class SessionManager implements ISessionManager {
     private readonly rolesConfigPath?: string,
     private readonly initialRoleName?: string,
     private readonly workingDirectory: string = process.cwd(),
-    private readonly autoApproveTools: boolean = false
+    private readonly autoApproveTools: boolean = false,
   ) {}
 
   // PUBLIC METHODS
@@ -51,7 +49,6 @@ export class SessionManager implements ISessionManager {
     await this.createMcpHub();
     this.initializeHelpers();
     await this.loadRoleConfiguration();
-    await this.setupInitialContext();
   }
 
   /**
@@ -59,14 +56,7 @@ export class SessionManager implements ISessionManager {
    */
   public getMessageHistory(): Message[] {
     this.ensureActiveSession();
-    return this.currentSession!.context.messages;
-  }
-
-  /**
-   * Get the size of the message queue
-   */
-  public getQueueSize(): number {
-    throw new Error("Method not implemented.");
+    return this.currentSession!.messages;
   }
 
   /**
@@ -77,46 +67,55 @@ export class SessionManager implements ISessionManager {
       throw new MCPilotError(
         "Session already exists",
         "SESSION_EXISTS",
-        ErrorSeverity.HIGH
+        ErrorSeverity.HIGH,
       );
     }
 
     await this.init();
 
-    const sessionId = this.generateSessionId();
     this.currentSession = {
-      id: sessionId,
-      context: this.contextManager.getContext(),
-      state: SessionState.READY,
+      id: uuidv4(),
+      state: SessionState.INITIALIZING,
+      systemPrompt: "",
+      messages: [],
+      metadata: this.createDefaultMetadata(),
     };
 
+    await this.setupInitialSession();
+
+    this.currentSession.state = SessionState.READY;
+    this.saveSessionToFile();
     return this.currentSession;
   }
 
   /**
    * Resume a session from a log file
    */
-  public async resumeSession(logPath: string): Promise<Session> {
-    if (!logPath) {
+  public async resumeSession(pathOrId: string): Promise<Session> {
+    if (!pathOrId) {
       throw new MCPilotError(
-        "Log path is required",
-        "INVALID_LOG_PATH",
-        ErrorSeverity.HIGH
+        "Session path or ID is required",
+        "INVALID_PATH_OR_ID",
+        ErrorSeverity.HIGH,
       );
     }
 
     try {
       await this.init();
 
-      const sessionData = this.loadSessionFromLog(logPath);
+      let sessionData: Session;
 
-      this.currentSession = {
-        id: sessionData.id,
-        context: sessionData.context,
-        state: SessionState.INITIALIZING,
-      };
+      // First try to load as a session ID
+      const sessionPath = path.join(process.cwd(), "sessions", pathOrId);
+      if (fs.existsSync(sessionPath)) {
+        const rawData = fs.readFileSync(sessionPath, "utf8");
+        sessionData = JSON.parse(rawData);
+      } else {
+        // Fall back to loading from log file
+        sessionData = this.loadSessionFromLog(pathOrId);
+      }
 
-      this.contextManager.updateContext(sessionData.context);
+      this.currentSession = sessionData;
       this.currentSession.state = SessionState.READY;
 
       return this.currentSession;
@@ -125,7 +124,7 @@ export class SessionManager implements ISessionManager {
         "Failed to resume session",
         "RESUME_FAILED",
         ErrorSeverity.HIGH,
-        { logPath, error }
+        { pathOrId, error },
       );
     }
   }
@@ -140,7 +139,7 @@ export class SessionManager implements ISessionManager {
       this.currentSession!.state = SessionState.PROCESSING;
 
       const newMessage = this.createMessageObject(message);
-      this.addMessageToContext(newMessage);
+      this.addMessageToSession(newMessage);
       const response = await this.processMessageWithTools();
 
       this.currentSession!.state = SessionState.READY;
@@ -152,17 +151,59 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
-   * Get the current context
+   * Get the current session
    */
-  public getContext(): Context {
-    return this.contextManager.getContext();
+  public getSession(): Session {
+    this.ensureActiveSession();
+    return { ...this.currentSession! };
   }
 
   /**
-   * Update the context with new data
+   * Update the session with new data
    */
-  public updateContext(context: Partial<Context>): void {
-    this.contextManager.mergeContext(context);
+  public updateSession(sessionData: Partial<Session>): void {
+    this.ensureActiveSession();
+    this.currentSession = {
+      ...this.currentSession!,
+      ...sessionData,
+      metadata: {
+        ...this.currentSession!.metadata,
+        ...sessionData.metadata,
+      },
+    };
+    this.saveSessionToFile();
+  }
+
+  /**
+   * Save current session to a file
+   */
+  private saveSessionToFile(): void {
+    if (!this.currentSession) return;
+
+    const sessionsDir = path.join(process.cwd(), "sessions");
+    const sessionPath = path.join(sessionsDir, this.currentSession.id);
+
+    try {
+      // Create sessions directory if it doesn't exist
+      if (!fs.existsSync(sessionsDir)) {
+        fs.mkdirSync(sessionsDir, { recursive: true });
+      }
+
+      // Write session data to file
+      fs.writeFileSync(
+        sessionPath,
+        JSON.stringify(this.currentSession, null, 2),
+        "utf8",
+      );
+    } catch (error) {
+      logger.error("Failed to save session to file:", error);
+      throw new MCPilotError(
+        "Failed to save session to file",
+        "SESSION_SAVE_FAILED",
+        ErrorSeverity.HIGH,
+        { error },
+      );
+    }
   }
 
   // PRIVATE METHODS
@@ -185,7 +226,7 @@ export class SessionManager implements ISessionManager {
     this.toolRequestParser = new ToolRequestParser(this.mcpHub);
     this.promptEnhancer = new SystemPromptEnhancer(
       this.mcpHub.getToolCatalog(),
-      this.workingDirectory
+      this.workingDirectory,
     );
   }
 
@@ -201,42 +242,38 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
-   * Set up the initial context
+   * Create default metadata for a new session
    */
-  private async setupInitialContext(): Promise<void> {
-    const initialContext: Partial<Context> = {
-      systemPrompt: "",
-      messages: [],
-      metadata: {
-        sessionId: "",
-        timestamp: new Date(),
-        environment: {
-          cwd: this.workingDirectory,
-          os: process.platform,
-          shell: process.env.SHELL || "",
-        },
+  private createDefaultMetadata() {
+    return {
+      timestamp: new Date(),
+      environment: {
+        cwd: this.workingDirectory,
+        os: process.platform,
+        shell: process.env.SHELL || "",
       },
     };
+  }
 
+  /**
+   * Set up the initial session
+   */
+  private async setupInitialSession(): Promise<void> {
     if (this.initialRoleName) {
-      await this.setupRoleContext(initialContext);
+      await this.setupRoleContext();
     }
-
-    this.contextManager.mergeContext(initialContext);
   }
 
   /**
    * Set up role-specific context
    */
-  private async setupRoleContext(
-    initialContext: Partial<Context>
-  ): Promise<void> {
+  private async setupRoleContext(): Promise<void> {
     const roleConfig = this.roleLoader.getRole(this.initialRoleName!);
     if (!roleConfig) {
       throw new MCPilotError(
         `Role '${this.initialRoleName}' not found`,
         "INVALID_ROLE",
-        ErrorSeverity.HIGH
+        ErrorSeverity.HIGH,
       );
     }
     this.currentRole = roleConfig;
@@ -247,14 +284,18 @@ export class SessionManager implements ISessionManager {
       title: "Role Instructions",
       content: roleConfig.instructions,
     });
-    initialContext.systemPrompt = await this.promptEnhancer.buildSystemPrompt();
 
-    if (initialContext.metadata) {
-      initialContext.metadata.role = {
-        name: this.initialRoleName!,
-        ...roleConfig,
-      };
-    }
+    this.updateSession({
+      systemPrompt: await this.promptEnhancer.buildSystemPrompt(),
+      metadata: {
+        ...this.currentSession!.metadata,
+        role: {
+          name: this.initialRoleName!,
+          definition: roleConfig.definition,
+          instructions: roleConfig.instructions,
+        },
+      },
+    });
   }
 
   /**
@@ -265,7 +306,7 @@ export class SessionManager implements ISessionManager {
       throw new MCPilotError(
         "No active session",
         "NO_SESSION",
-        ErrorSeverity.HIGH
+        ErrorSeverity.HIGH,
       );
     }
   }
@@ -297,12 +338,12 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
-   * Add a message to the context
+   * Add a message to the session
    */
-  private addMessageToContext(message: Message): void {
-    const context = this.contextManager.getContext();
-    context.messages.push(message);
-    this.contextManager.updateContext(context);
+  private addMessageToSession(message: Message): void {
+    this.updateSession({
+      messages: [...this.currentSession!.messages, message],
+    });
   }
 
   /**
@@ -315,7 +356,13 @@ export class SessionManager implements ISessionManager {
       const logs = this.parseLogContent(logContent);
 
       // Initialize session data with default values
-      const sessionData = this.initializeSessionData();
+      const sessionData: Session = {
+        id: "",
+        state: SessionState.INITIALIZING,
+        systemPrompt: "",
+        messages: [],
+        metadata: this.createDefaultMetadata(),
+      };
 
       // Process log entries in order
       for (const log of logs) {
@@ -338,7 +385,7 @@ export class SessionManager implements ISessionManager {
         `Failed to parse session log: ${errorMessage}`,
         "LOG_PARSE_FAILED",
         ErrorSeverity.HIGH,
-        { logPath, error }
+        { logPath, error },
       );
     }
   }
@@ -377,50 +424,44 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
-   * Initialize session data with defaults
-   */
-  private initializeSessionData(): Session & { history: Message[] } {
-    return {
-      id: "",
-      context: this.contextManager.getContext(),
-      state: SessionState.INITIALIZING,
-      history: [] as Message[],
-    };
-  }
-
-  /**
    * Process a single log entry
    */
   private processLogEntry(
     log: any,
-    sessionData: Session & { history: Message[] },
-    logPath: string
+    sessionData: Session,
+    logPath: string,
   ): void {
     if (!log.metadata) return;
 
-    const { sessionId, context, state, message } = log.metadata;
+    const { sessionId, messages, state, systemPrompt } = log.metadata;
 
     if (sessionId) {
       sessionData.id = sessionId;
     }
-    if (context) {
-      sessionData.context = {
-        ...sessionData.context,
-        ...context,
-        metadata: {
-          ...context.metadata,
-          custom: {
-            ...context.metadata?.custom,
-            sessionFilename: path.basename(logPath || ""),
-          },
-        },
-      };
+    if (messages) {
+      sessionData.messages = messages;
     }
     if (state) {
       sessionData.state = state;
     }
-    if (message && typeof message === "object") {
-      sessionData.history.push(message);
+    if (systemPrompt) {
+      sessionData.systemPrompt = systemPrompt;
+    }
+
+    // Update metadata
+    if (log.metadata.environment || log.metadata.role || log.metadata.custom) {
+      sessionData.metadata = {
+        ...sessionData.metadata,
+        ...(log.metadata.environment && {
+          environment: log.metadata.environment,
+        }),
+        ...(log.metadata.role && { role: log.metadata.role }),
+        custom: {
+          ...sessionData.metadata.custom,
+          ...log.metadata.custom,
+          sessionFilename: path.basename(logPath),
+        },
+      };
     }
   }
 
@@ -428,12 +469,10 @@ export class SessionManager implements ISessionManager {
    * Ensure session filename is in metadata
    */
   private ensureSessionFilename(sessionData: Session, logPath: string): void {
-    if (!sessionData.context.metadata.custom?.sessionFilename) {
-      sessionData.context.metadata.custom = {
-        ...sessionData.context.metadata.custom,
-        sessionFilename: path.basename(logPath),
-      };
+    if (!sessionData.metadata.custom) {
+      sessionData.metadata.custom = {};
     }
+    sessionData.metadata.custom.sessionFilename = path.basename(logPath);
   }
 
   /**
@@ -443,15 +482,13 @@ export class SessionManager implements ISessionManager {
     if (!this.provider) {
       return this.createErrorResponse(
         "NO_PROVIDER",
-        "No LLM provider configured"
+        "No LLM provider configured",
       );
     }
 
     try {
-      const context = this.contextManager.getContext();
-
       logger.debug("Processing message with tools....");
-      let response = await this.provider.processMessage(context);
+      let response = await this.provider.processMessage(this.currentSession!);
       logger.debug("Response:", response.id);
 
       // Check for tool requests in response
@@ -459,11 +496,11 @@ export class SessionManager implements ISessionManager {
         throw new MCPilotError(
           "LLM response missing text content",
           "INVALID_RESPONSE",
-          ErrorSeverity.HIGH
+          ErrorSeverity.HIGH,
         );
       }
 
-      this.addAssistantResponseToContext(response.content.text);
+      this.addAssistantResponseToSession(response.content.text);
 
       const toolRequests = await this.parseToolRequests(response.content.text);
       await this.handleToolRequests(toolRequests);
@@ -473,27 +510,21 @@ export class SessionManager implements ISessionManager {
       return this.createErrorResponse(
         "PROCESSING_FAILED",
         "Failed to process message",
-        error
+        error,
       );
     }
   }
 
   /**
-   * Add the assistant's response to the context
+   * Add the assistant's response to the session
    */
-  private addAssistantResponseToContext(responseText: string): void {
-    const context = this.contextManager.getContext();
-    this.contextManager.mergeContext({
-      messages: [
-        ...context.messages,
-        {
-          id: this.generateMessageId(),
-          type: MessageType.ASSISTANT,
-          content: responseText,
-          timestamp: new Date(),
-          metadata: {},
-        },
-      ],
+  private addAssistantResponseToSession(responseText: string): void {
+    this.addMessageToSession({
+      id: this.generateMessageId(),
+      type: MessageType.ASSISTANT,
+      content: responseText,
+      timestamp: new Date(),
+      metadata: {},
     });
   }
 
@@ -501,14 +532,14 @@ export class SessionManager implements ISessionManager {
    * Parse tool requests from a response
    */
   private async parseToolRequests(
-    responseText: string
+    responseText: string,
   ): Promise<ParsedToolRequest[]> {
     try {
       return await this.toolRequestParser.parseRequest(responseText);
     } catch (error) {
       logger.error("Error processing message with tools:", error);
       await this.executeMessage(
-        `Error processing message with tools: ${JSON.stringify(error)}`
+        `Error processing message with tools: ${JSON.stringify(error)}`,
       );
       return [];
     }
@@ -518,7 +549,7 @@ export class SessionManager implements ISessionManager {
    * Handle tool requests
    */
   private async handleToolRequests(
-    toolRequests: ParsedToolRequest[]
+    toolRequests: ParsedToolRequest[],
   ): Promise<void> {
     // If there's a tool request, process only the first one
     if (toolRequests.length > 0) {
@@ -527,7 +558,7 @@ export class SessionManager implements ISessionManager {
         const result = await this.mcpHub.callTool(
           request.serverName,
           request.toolName,
-          request.arguments
+          request.arguments,
         );
 
         logger.debug("Tool call result:", result);
@@ -546,7 +577,7 @@ export class SessionManager implements ISessionManager {
    */
   private createToolCallMessage(
     request: ParsedToolRequest,
-    result: any
+    result: any,
   ): Message {
     return {
       id: this.generateMessageId(),
@@ -578,7 +609,7 @@ export class SessionManager implements ISessionManager {
   private createErrorResponse(
     code: string,
     message: string,
-    details?: any
+    details?: any,
   ): Response {
     return {
       id: this.generateMessageId(),
@@ -607,21 +638,14 @@ export class SessionManager implements ISessionManager {
       "Session error",
       "SESSION_ERROR",
       ErrorSeverity.HIGH,
-      { originalError: error }
+      { originalError: error },
     );
-  }
-
-  /**
-   * Generate a unique session ID
-   */
-  private generateSessionId(): string {
-    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
    * Generate a unique message ID
    */
   private generateMessageId(): string {
-    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `msg_${uuidv4()}`;
   }
 }

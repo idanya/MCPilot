@@ -3,43 +3,36 @@
  * message flow and logging across a single interaction session.
  */
 
-import type { Context, DeepPartial } from "./context.ts";
 import type { Message } from "./message.ts";
-import type { Response } from "./response.ts";
 import type { SessionState } from "./state.ts";
 
-export type ISessionManager = {
-  createSession(): Promise<Session>;
-  resumeSession(logPath: string): Promise<Session>;
-  executeMessage(message: string): Promise<Response>;
-  getContext(): Context;
-  getMessageHistory(): Message[];
-  updateContext(context: Partial<Context>): void;
-  getQueueSize(): number;
-};
-
-export type Session = {
+export interface Session {
+  // Core session properties
   id: string;
-  context: Context;
   state: SessionState;
-};
+  systemPrompt: string;
+  messages: Message[];
+  metadata: SessionMetadata;
+}
+
+export interface SessionMetadata {
+  timestamp: Date;
+  environment: {
+    cwd: string;
+    os: string;
+    shell: string;
+  };
+  role?: {
+    name: string;
+    definition: string;
+    instructions: string;
+  };
+  custom?: Record<string, any>;
+}
 
 export enum LogLevel {
   DEBUG = "debug",
   INFO = "info",
   WARN = "warn",
   ERROR = "error",
-}
-
-export type ContextData = {
-  [key: string]: any;
-};
-
-export interface IMessageQueue {
-  enqueue(message: Message): void;
-  dequeue(): Message | null;
-  peek(): Message | null;
-  size(): number;
-  clear(): void;
-  getMessages(): Message[];
 }

@@ -2,7 +2,6 @@
  * Provider-related exports
  */
 
-export { BaseLLMProvider } from "./base-provider.ts";
 export { ProviderFactory } from "./provider-factory.ts";
 
 // Re-export provider types from interfaces for convenience

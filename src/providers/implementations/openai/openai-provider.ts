@@ -4,7 +4,7 @@
 
 import OpenAI from "openai";
 
-import { Context } from "../../../interfaces/base/context.ts";
+import { Session } from "../../../interfaces/base/session.ts";
 import { MessageType } from "../../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../../interfaces/base/response.ts";
 import {
@@ -12,7 +12,7 @@ import {
   ErrorSeverity,
 } from "../../../interfaces/error/types.ts";
 import { ProviderConfig } from "../../../interfaces/llm/provider.ts";
-import { BaseLLMProvider } from "../../base-provider.ts";
+import { BaseProvider } from "../../base-provider.ts";
 import {
   OpenAIMessage,
   OpenAICompletion,
@@ -23,22 +23,23 @@ import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { logger } from "../../../services/logger/index.ts";
 
-export class OpenAIProvider extends BaseLLMProvider {
+export class OpenAIProvider extends BaseProvider {
   private client: OpenAI;
 
   constructor(config: ProviderConfig) {
-    super(config);
+    super();
     this.client = new OpenAI({
-      apiKey: this.config.apiKey || process.env.OPENAI_API_KEY,
+      apiKey: config.apiKey || process.env.OPENAI_API_KEY,
     });
+    this.config = config;
   }
 
   /**
    * Sends a request to OpenAI and returns the response as a stream
-   * @param context The conversation context
+   * @param session The conversation session
    */
-  async *sendStreamedRequest(context: Context): ApiStream {
-    const messages = this.formatMessages(context);
+  async *sendStreamedRequest(session: Session): ApiStream {
+    const messages = this.formatMessages(session);
     try {
       logger.info("Sending request to OpenAI...");
 
@@ -72,21 +73,12 @@ export class OpenAIProvider extends BaseLLMProvider {
     }
   }
 
-  protected async initializeProvider(): Promise<void> {
-    if (!this.config.apiKey) {
-      throw new MCPilotError(
-        "OpenAI API key is required",
-        "CONFIG_ERROR",
-        ErrorSeverity.HIGH,
-      );
-    }
+  public async processMessage(session: Session): Promise<Response> {
+    const response = await this.sendRequest(session);
+    return await this.parseResponse(response);
   }
 
-  protected async shutdownProvider(): Promise<void> {
-    // No specific cleanup needed for OpenAI
-  }
-
-  protected async sendRequest(context: Context): Promise<OpenAICompletion> {
+  protected async sendRequest(session: Session): Promise<OpenAICompletion> {
     let fullResponse: OpenAICompletion = {
       id: uuidv4(),
       object: "chat.completion",
@@ -109,7 +101,7 @@ export class OpenAIProvider extends BaseLLMProvider {
       },
     };
 
-    const stream = this.sendStreamedRequest(context);
+    const stream = this.sendStreamedRequest(session);
     const iterator = stream[Symbol.asyncIterator]();
 
     for await (const chunk of iterator) {
@@ -166,19 +158,19 @@ export class OpenAIProvider extends BaseLLMProvider {
   }
 
   private formatMessages(
-    context: Context,
+    session: Session,
   ): OpenAI.Chat.ChatCompletionMessageParam[] {
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [];
 
-    if (context.systemPrompt) {
+    if (session.systemPrompt) {
       messages.push({
         role: "system",
-        content: context.systemPrompt,
+        content: session.systemPrompt,
       });
     }
 
     return messages.concat(
-      context.messages.map((message) => ({
+      session.messages.map((message) => ({
         role: this.mapMessageTypeToRole(message.type),
         content: message.content,
       })),

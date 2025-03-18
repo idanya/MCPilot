@@ -2,12 +2,12 @@
  * Defines the interface for LLM providers and their configuration
  */
 
-import type { Context } from "../base/context.ts";
+import type { Session } from "../base/session.ts";
 import type { Response } from "../base/response.ts";
 
 export type ILLMProvider = {
   initialize(config: ProviderConfig): Promise<void>;
-  processMessage(context: Context): Promise<Response>;
+  processMessage(session: Session): Promise<Response>;
   shutdown(): Promise<void>;
 };
 
@@ -46,7 +46,7 @@ export enum ProviderType {
 
 export type ITokenCounter = {
   countTokens(text: string): number;
-  estimateTokens(context: Context): number;
+  estimateTokens(session: Session): number;
   getLimit(): number;
   getUsage(): TokenUsage;
 };
