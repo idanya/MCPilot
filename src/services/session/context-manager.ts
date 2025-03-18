@@ -4,17 +4,16 @@
 
 import { Context, ContextMetadata } from "../../interfaces/base/context.ts";
 import { ContextData } from "../../interfaces/base/session.ts";
-import { IContextManager } from "../../interfaces/base/session.ts";
+
 import { MCPilotError, ErrorSeverity } from "../../interfaces/error/types.ts";
 
-export class ContextManager implements IContextManager {
+export class ContextManager {
   private context: Context;
 
   constructor(initialContext?: Partial<Context>) {
     this.context = {
       systemPrompt: "",
       messages: [],
-      tools: [],
       metadata: this.createDefaultMetadata(),
       ...initialContext,
     };
@@ -32,7 +31,7 @@ export class ContextManager implements IContextManager {
         "Failed to update context",
         "CONTEXT_UPDATE_FAILED",
         ErrorSeverity.HIGH,
-        { error },
+        { error }
       );
     }
   }
@@ -45,7 +44,6 @@ export class ContextManager implements IContextManager {
     this.context = {
       systemPrompt: "",
       messages: [],
-      tools: [],
       metadata: this.createDefaultMetadata(),
     };
   }
@@ -59,14 +57,13 @@ export class ContextManager implements IContextManager {
           ...this.context.metadata,
           ...newContext.metadata,
         },
-        tools: [...this.context.tools, ...(newContext.tools || [])],
       };
     } catch (error) {
       throw new MCPilotError(
         "Failed to merge context",
         "CONTEXT_MERGE_FAILED",
         ErrorSeverity.HIGH,
-        { error },
+        { error }
       );
     }
   }

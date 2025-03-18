@@ -4,18 +4,14 @@
 
 import * as fs from "fs";
 import * as path from "path";
-import { Context, DeepPartial } from "../../interfaces/base/context.ts";
+import { Context } from "../../interfaces/base/context.ts";
 import {
   Message,
   MessageType,
   ToolCallStatus,
 } from "../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../interfaces/base/response.ts";
-import {
-  IContextManager,
-  ISessionManager,
-  Session,
-} from "../../interfaces/base/session.ts";
+import { ISessionManager, Session } from "../../interfaces/base/session.ts";
 import { SessionState } from "../../interfaces/base/state.ts";
 import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types.ts";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
@@ -34,9 +30,8 @@ export class SessionManager implements ISessionManager {
   private promptEnhancer!: SystemPromptEnhancer;
   private mcpHub!: McpHub;
   private roleLoader!: RoleConfigLoader;
-  private currentRoleName?: string;
   private currentRole?: RoleConfig;
-  private contextManager: IContextManager = new ContextManager();
+  private contextManager = new ContextManager();
 
   constructor(
     private readonly config: MCPilotConfig,
@@ -44,10 +39,8 @@ export class SessionManager implements ISessionManager {
     private readonly rolesConfigPath?: string,
     private readonly initialRoleName?: string,
     private readonly workingDirectory: string = process.cwd(),
-    private readonly autoApproveTools: boolean = false,
-  ) {
-    this.currentRoleName = initialRoleName;
-  }
+    private readonly autoApproveTools: boolean = false
+  ) {}
 
   // PUBLIC METHODS
 
@@ -84,7 +77,7 @@ export class SessionManager implements ISessionManager {
       throw new MCPilotError(
         "Session already exists",
         "SESSION_EXISTS",
-        ErrorSeverity.HIGH,
+        ErrorSeverity.HIGH
       );
     }
 
@@ -108,7 +101,7 @@ export class SessionManager implements ISessionManager {
       throw new MCPilotError(
         "Log path is required",
         "INVALID_LOG_PATH",
-        ErrorSeverity.HIGH,
+        ErrorSeverity.HIGH
       );
     }
 
@@ -132,7 +125,7 @@ export class SessionManager implements ISessionManager {
         "Failed to resume session",
         "RESUME_FAILED",
         ErrorSeverity.HIGH,
-        { logPath, error },
+        { logPath, error }
       );
     }
   }
@@ -147,8 +140,6 @@ export class SessionManager implements ISessionManager {
       this.currentSession!.state = SessionState.PROCESSING;
 
       const newMessage = this.createMessageObject(message);
-      await this.initializeRoleIfNeeded();
-
       this.addMessageToContext(newMessage);
       const response = await this.processMessageWithTools();
 
@@ -194,7 +185,7 @@ export class SessionManager implements ISessionManager {
     this.toolRequestParser = new ToolRequestParser(this.mcpHub);
     this.promptEnhancer = new SystemPromptEnhancer(
       this.mcpHub.getToolCatalog(),
-      this.workingDirectory,
+      this.workingDirectory
     );
   }
 
@@ -216,7 +207,6 @@ export class SessionManager implements ISessionManager {
     const initialContext: Partial<Context> = {
       systemPrompt: "",
       messages: [],
-      tools: [],
       metadata: {
         sessionId: "",
         timestamp: new Date(),
@@ -239,14 +229,14 @@ export class SessionManager implements ISessionManager {
    * Set up role-specific context
    */
   private async setupRoleContext(
-    initialContext: Partial<Context>,
+    initialContext: Partial<Context>
   ): Promise<void> {
     const roleConfig = this.roleLoader.getRole(this.initialRoleName!);
     if (!roleConfig) {
       throw new MCPilotError(
         `Role '${this.initialRoleName}' not found`,
         "INVALID_ROLE",
-        ErrorSeverity.HIGH,
+        ErrorSeverity.HIGH
       );
     }
     this.currentRole = roleConfig;
@@ -275,7 +265,7 @@ export class SessionManager implements ISessionManager {
       throw new MCPilotError(
         "No active session",
         "NO_SESSION",
-        ErrorSeverity.HIGH,
+        ErrorSeverity.HIGH
       );
     }
   }
@@ -304,17 +294,6 @@ export class SessionManager implements ISessionManager {
           }
         : undefined,
     };
-  }
-
-  /**
-   * Initialize role if not already set
-   */
-  private async initializeRoleIfNeeded(): Promise<void> {
-    if (this.contextManager.getContext().messages.length === 0) {
-      if (this.currentRoleName && this.currentRole) {
-        await this.setRole(this.currentRoleName, this.currentRole);
-      }
-    }
   }
 
   /**
@@ -359,7 +338,7 @@ export class SessionManager implements ISessionManager {
         `Failed to parse session log: ${errorMessage}`,
         "LOG_PARSE_FAILED",
         ErrorSeverity.HIGH,
-        { logPath, error },
+        { logPath, error }
       );
     }
   }
@@ -415,7 +394,7 @@ export class SessionManager implements ISessionManager {
   private processLogEntry(
     log: any,
     sessionData: Session & { history: Message[] },
-    logPath: string,
+    logPath: string
   ): void {
     if (!log.metadata) return;
 
@@ -458,38 +437,13 @@ export class SessionManager implements ISessionManager {
   }
 
   /**
-   * Set a role for the current session
-   */
-  private async setRole(name: string, roleConfig: RoleConfig): Promise<void> {
-    try {
-      const context: DeepPartial<Context> = {
-        metadata: {
-          role: {
-            name,
-            ...roleConfig,
-          },
-        },
-      };
-
-      this.contextManager.mergeContext(context);
-    } catch (error) {
-      throw new MCPilotError(
-        "Failed to set role",
-        "ROLE_SET_ERROR",
-        ErrorSeverity.HIGH,
-        { error },
-      );
-    }
-  }
-
-  /**
    * Process a message with potential tool requests
    */
   private async processMessageWithTools(): Promise<Response> {
     if (!this.provider) {
       return this.createErrorResponse(
         "NO_PROVIDER",
-        "No LLM provider configured",
+        "No LLM provider configured"
       );
     }
 
@@ -505,7 +459,7 @@ export class SessionManager implements ISessionManager {
         throw new MCPilotError(
           "LLM response missing text content",
           "INVALID_RESPONSE",
-          ErrorSeverity.HIGH,
+          ErrorSeverity.HIGH
         );
       }
 
@@ -519,7 +473,7 @@ export class SessionManager implements ISessionManager {
       return this.createErrorResponse(
         "PROCESSING_FAILED",
         "Failed to process message",
-        error,
+        error
       );
     }
   }
@@ -547,14 +501,14 @@ export class SessionManager implements ISessionManager {
    * Parse tool requests from a response
    */
   private async parseToolRequests(
-    responseText: string,
+    responseText: string
   ): Promise<ParsedToolRequest[]> {
     try {
       return await this.toolRequestParser.parseRequest(responseText);
     } catch (error) {
       logger.error("Error processing message with tools:", error);
       await this.executeMessage(
-        `Error processing message with tools: ${JSON.stringify(error)}`,
+        `Error processing message with tools: ${JSON.stringify(error)}`
       );
       return [];
     }
@@ -564,7 +518,7 @@ export class SessionManager implements ISessionManager {
    * Handle tool requests
    */
   private async handleToolRequests(
-    toolRequests: ParsedToolRequest[],
+    toolRequests: ParsedToolRequest[]
   ): Promise<void> {
     // If there's a tool request, process only the first one
     if (toolRequests.length > 0) {
@@ -573,7 +527,7 @@ export class SessionManager implements ISessionManager {
         const result = await this.mcpHub.callTool(
           request.serverName,
           request.toolName,
-          request.arguments,
+          request.arguments
         );
 
         logger.debug("Tool call result:", result);
@@ -592,7 +546,7 @@ export class SessionManager implements ISessionManager {
    */
   private createToolCallMessage(
     request: ParsedToolRequest,
-    result: any,
+    result: any
   ): Message {
     return {
       id: this.generateMessageId(),
@@ -624,7 +578,7 @@ export class SessionManager implements ISessionManager {
   private createErrorResponse(
     code: string,
     message: string,
-    details?: any,
+    details?: any
   ): Response {
     return {
       id: this.generateMessageId(),
@@ -653,7 +607,7 @@ export class SessionManager implements ISessionManager {
       "Session error",
       "SESSION_ERROR",
       ErrorSeverity.HIGH,
-      { originalError: error },
+      { originalError: error }
     );
   }
 

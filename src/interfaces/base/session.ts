@@ -24,13 +24,6 @@ export type Session = {
   state: SessionState;
 };
 
-export type IContextManager = {
-  updateContext(data: ContextData): void;
-  getContext(): Context;
-  clearContext(): void;
-  mergeContext(newContext: DeepPartial<Context>): void;
-};
-
 export enum LogLevel {
   DEBUG = "debug",
   INFO = "info",

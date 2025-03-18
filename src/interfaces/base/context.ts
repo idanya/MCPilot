@@ -15,7 +15,6 @@ export type DeepPartial<T> = {
 export type Context = {
   systemPrompt: string;
   messages: Message[];
-  tools: ToolContext[];
   metadata: ContextMetadata;
 };
 
