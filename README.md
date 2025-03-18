@@ -207,3 +207,9 @@ Alternatively, you can use the `--auto-approve-tools` CLI flag to auto-approve a
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+## Acknowledgments
+
+This project is heavily inspired by these great tools:
+- [Roo Code](https://github.com/RooVetGit/Roo-Code)
+- [Codename Goose](https://block.github.io/goose/)
