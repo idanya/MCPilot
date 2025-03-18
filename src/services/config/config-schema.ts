@@ -3,21 +3,40 @@
  */
 
 import { z } from "zod";
-import { LogLevel } from "../../interfaces/base/session.ts";
-import { mcpServerConfigSchema, McpServerConfig } from "./mcp-schema.ts";
+import { McpServerConfig, mcpServerConfigSchema } from "./mcp-schema.ts";
+
+// Provider options schema
+const providerOptionsSchema = z
+  .object({
+    timeout: z.number().positive().optional(),
+    retryAttempts: z.number().positive().optional(),
+    contextWindow: z.number().positive().optional(),
+    streaming: z.boolean().optional(),
+    stopSequences: z.array(z.string()).optional(),
+    logitBias: z.record(z.number()).optional(),
+  })
+  .optional();
 
 // Provider-specific schemas
 const openAiConfigSchema = z.object({
-  apiKey: z.string().min(1).optional(),
   model: z.string().min(1),
+  apiKey: z.string().min(1).optional(),
+  apiEndpoint: z.string().optional(),
+  maxTokens: z.number().positive().optional(),
+  temperature: z.number().optional(),
+  options: providerOptionsSchema,
   apiVersion: z.string().optional(),
   organizationId: z.string().optional(),
   maxRetries: z.number().positive().optional(),
 });
 
 const anthropicConfigSchema = z.object({
-  apiKey: z.string().min(1).optional(),
   model: z.string().min(1),
+  apiKey: z.string().min(1).optional(),
+  apiEndpoint: z.string().optional(),
+  maxTokens: z.number().positive().optional(),
+  temperature: z.number().optional(),
+  options: providerOptionsSchema,
   apiVersion: z.string().optional(),
   maxTokensToSample: z.number().positive().optional(),
   stopSequences: z.array(z.string()).optional(),
@@ -25,6 +44,11 @@ const anthropicConfigSchema = z.object({
 
 const localConfigSchema = z.object({
   model: z.string().min(1),
+  apiKey: z.string().min(1).optional(),
+  apiEndpoint: z.string().optional(),
+  maxTokens: z.number().positive().optional(),
+  temperature: z.number().optional(),
+  options: providerOptionsSchema,
   modelPath: z.string().min(1),
   quantization: z.enum(["q4_0", "q4_1", "q5_0", "q5_1", "q8_0"]).optional(),
   contextSize: z.number().positive().optional(),
@@ -65,26 +89,14 @@ export const configSchema = z
     }),
 
     logging: z.object({
-      level: z.enum([
-        LogLevel.DEBUG,
-        LogLevel.INFO,
-        LogLevel.WARN,
-        LogLevel.ERROR,
-      ]),
-      format: z.enum(["json", "text"]),
-      file: z.string().optional(),
-      maxFiles: z.number().positive().optional(),
-      maxSize: z
-        .string()
-        .regex(/^\d+[kmg]b$/i)
-        .optional(),
+      level: z.enum(["DEBUG", "INFO", "WARN", "ERROR"]),
     }),
 
     mcp: z
       .object({
-        servers: z.record(mcpServerConfigSchema),
+        servers: z.record(mcpServerConfigSchema).optional(),
       })
-      .default({ servers: {} }),
+      .optional(),
   })
   .refine(
     (config) => {
@@ -117,6 +129,11 @@ export const getProviderSchema = (type: string) => {
     z
       .object({
         model: z.string().min(1),
+        apiKey: z.string().min(1).optional(),
+        apiEndpoint: z.string().optional(),
+        maxTokens: z.number().positive().optional(),
+        temperature: z.number().optional(),
+        options: providerOptionsSchema,
       })
       .passthrough()
   );

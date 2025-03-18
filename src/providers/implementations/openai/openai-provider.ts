@@ -4,24 +4,19 @@
 
 import OpenAI from "openai";
 
-import { Session } from "../../../interfaces/base/session.ts";
+import { v4 as uuidv4 } from "uuid";
 import { MessageType } from "../../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../../interfaces/base/response.ts";
+import { Session } from "../../../interfaces/base/session.ts";
 import {
-  MCPilotError,
   ErrorSeverity,
+  MCPilotError,
 } from "../../../interfaces/error/types.ts";
 import { ProviderConfig } from "../../../interfaces/llm/provider.ts";
-import { BaseProvider } from "../../base-provider.ts";
-import {
-  OpenAIMessage,
-  OpenAICompletion,
-  OpenAIError,
-  OpenAIStreamChunk,
-} from "./types.ts";
-import { v4 as uuidv4 } from "uuid";
-import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { logger } from "../../../services/logger/index.ts";
+import { BaseProvider } from "../../base-provider.ts";
+import { ApiStream, ApiStreamChunk } from "../../stream.ts";
+import { OpenAICompletion } from "./types.ts";
 
 export class OpenAIProvider extends BaseProvider {
   private client: OpenAI;

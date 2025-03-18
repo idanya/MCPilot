@@ -71,7 +71,7 @@ export class XmlParser {
     if (typeof params.arguments === "string") {
       try {
         toolArguments = JSON.parse(params.arguments);
-      } catch (error) {
+      } catch {
         throw new XmlParseError("Invalid JSON in tool arguments");
       }
     } else {
@@ -104,7 +104,7 @@ export class XmlParser {
       if (this.hasNestedTags(paramValue)) {
         try {
           parameters[paramName] = this.parseParameters(paramValue);
-        } catch (error) {
+        } catch {
           // If nested parsing fails, store as string
           parameters[paramName] = this.normalizeValue(paramValue);
         }

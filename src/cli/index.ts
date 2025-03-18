@@ -5,21 +5,23 @@
  */
 
 import { Command } from "commander";
+import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 import {
   AnthropicConfig,
   AnthropicProvider,
-  ProviderType,
   OpenAIConfig,
   OpenAIProvider,
   ProviderFactory,
+  ProviderType,
 } from "../providers/index.ts";
+import { logger } from "../services/logger/index.ts";
 import { SessionManager } from "../services/session/index.ts";
 import { handleError, handleResume, handleStart } from "./actions.ts";
+import { setupRolesCommands } from "./roles-commands.ts";
+import { setupProvidersCommands } from "./providers-commands.ts";
 import { MCPilotCLIOptions } from "./types.ts";
-import { readFileSync } from "fs";
-import { logger } from "../services/logger/index.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkg = JSON.parse(
@@ -51,6 +53,8 @@ class MCPilotCLI {
       this.setupCommands();
     }
   }
+
+  // Roles commands have been moved to src/cli/roles-commands.ts
 
   private setupCommands(): void {
     this.program
@@ -146,6 +150,12 @@ class MCPilotCLI {
           ).catch(handleError);
         },
       );
+
+    // Set up providers commands from the extracted module
+    setupProvidersCommands(this.program);
+
+    // Set up roles commands from the extracted module
+    setupRolesCommands(this.program);
   }
 
   public async run(argv: string[] = process.argv): Promise<void> {

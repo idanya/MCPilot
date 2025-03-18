@@ -121,7 +121,7 @@ export class ToolRequestParser {
           lastCheck: new Date(),
           responseTime,
         });
-      } catch (error) {
+      } catch {
         this.serverHealth.set(server.name, {
           name: server.name,
           status: "unhealthy",
