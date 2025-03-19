@@ -46,17 +46,9 @@ export class OpenAIProvider extends BaseProvider {
         stream: true,
       });
 
-      let currentText = "";
-      let inputTokens = 0;
-      let outputTokens = 0;
-
       for await (const chunk of stream) {
         const processedChunk = this.processStreamChunk(chunk);
         if (processedChunk) {
-          if (processedChunk.type === "text") {
-            currentText += processedChunk.text;
-            outputTokens += 1; // Approximate token count
-          }
           yield processedChunk;
         }
       }

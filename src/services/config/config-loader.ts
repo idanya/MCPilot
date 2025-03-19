@@ -109,13 +109,7 @@ export class ConfigLoader {
 
       const fileContent = await fs.promises.readFile(resolvedPath, "utf8");
 
-      let fileConfig: Partial<MCPilotConfig>;
-      if (filePath.endsWith(".json")) {
-        fileConfig = JSON.parse(fileContent);
-      } else {
-        // Assume it's a JS/TS module
-        fileConfig = require(resolvedPath);
-      }
+      let fileConfig: Partial<MCPilotConfig> = JSON.parse(fileContent);
 
       // Validate file configuration before merging
       const validationResult = validateConfig(fileConfig);
