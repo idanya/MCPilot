@@ -6,6 +6,10 @@ import * as fs from "fs";
 import * as path from "path";
 import { v4 as uuidv4 } from "uuid";
 import {
+  findConfigFileSync,
+  findNearestMcpilotDirSync,
+} from "../config/config-utils.ts";
+import {
   Message,
   MessageType,
   ToolCallStatus,
@@ -84,6 +88,29 @@ export class SessionManager {
     await this.setupInitialSession();
 
     this.currentSession.state = SessionState.READY;
+
+    // Save session and log paths
+    const mcpilotDir = this.findMcpilotDir();
+    const logsDir = path.join(mcpilotDir, "logs");
+    const sessionsDir = path.join(mcpilotDir, "sessions");
+    const sessionPath = path.join(sessionsDir, this.currentSession.id);
+    const configPath = findConfigFileSync(
+      this.workingDirectory,
+      ".mcpilot.config.json",
+      true,
+    );
+    const rolesConfigPath = findConfigFileSync(
+      this.workingDirectory,
+      ".mcpilot.roles.json",
+      false,
+    );
+
+    logger.info(`Config path: ${configPath}`);
+    logger.info(`Roles config path: ${rolesConfigPath}`);
+    logger.info(`Logs directory: ${logsDir}`);
+    logger.info(`Sessions directory: ${sessionsDir}`);
+    logger.info(`Session path: ${sessionPath}`);
+
     this.saveSessionToFile();
     return this.currentSession;
   }
@@ -106,7 +133,8 @@ export class SessionManager {
       let sessionData: Session;
 
       // First try to load as a session ID
-      const sessionPath = path.join(process.cwd(), "sessions", pathOrId);
+      const mcpilotDir = this.findMcpilotDir();
+      const sessionPath = path.join(mcpilotDir, "sessions", pathOrId);
       if (fs.existsSync(sessionPath)) {
         const rawData = fs.readFileSync(sessionPath, "utf8");
         sessionData = JSON.parse(rawData);
@@ -175,12 +203,22 @@ export class SessionManager {
   }
 
   /**
+   * Find the mcpilot directory for storing sessions
+   */
+  private findMcpilotDir(): string {
+    const mcpilotDir = findNearestMcpilotDirSync(this.workingDirectory);
+    return mcpilotDir || this.workingDirectory;
+  }
+
+  /**
    * Save current session to a file
    */
   private saveSessionToFile(): void {
     if (!this.currentSession) return;
 
-    const sessionsDir = path.join(process.cwd(), "sessions");
+    // Find nearest .mcpilot directory or default to local sessions
+    const mcpilotDir = this.findMcpilotDir();
+    const sessionsDir = path.join(mcpilotDir, "sessions");
     const sessionPath = path.join(sessionsDir, this.currentSession.id);
 
     try {

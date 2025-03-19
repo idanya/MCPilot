@@ -4,9 +4,42 @@
 
 import * as fs from "fs";
 import * as path from "path";
+import * as os from "os";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 
 const MCPILOT_DIR_NAME = ".mcpilot";
+
+/**
+ * Find the nearest .mcpilot directory from the given starting directory
+ * If not found, creates one in the user's home directory
+ *
+ * @param startDir The directory to start searching from
+ * @returns The path to the nearest .mcpilot directory, or a newly created one in the home directory
+ */
+export function findNearestMcpilotDirSync(startDir: string): string | null {
+  let currentDir = startDir;
+
+  while (true) {
+    const mcpilotDirPath = path.join(currentDir, MCPILOT_DIR_NAME);
+    if (fs.existsSync(mcpilotDirPath)) {
+      return mcpilotDirPath;
+    }
+
+    const parentDir = path.dirname(currentDir);
+    if (parentDir === currentDir) {
+      // Reached root directory, create in home directory
+      const homeDir = os.homedir();
+      const homeMcpilotDir = path.join(homeDir, MCPILOT_DIR_NAME);
+
+      if (!fs.existsSync(homeMcpilotDir)) {
+        fs.mkdirSync(homeMcpilotDir, { recursive: true });
+      }
+
+      return homeMcpilotDir;
+    }
+    currentDir = parentDir;
+  }
+}
 
 /**
  * Synchronous version of findConfigFileAsync
@@ -25,36 +58,40 @@ export function findConfigFileSync(
   const searchedPaths: string[] = [];
 
   while (true) {
-    // First try in the .mcpilot directory
-    const mcpilotDirPath = path.join(currentDir, MCPILOT_DIR_NAME);
-    const mcpilotConfigPath = path.join(mcpilotDirPath, fileName);
-    searchedPaths.push(mcpilotConfigPath);
+    // Check if there's a .mcpilot directory from the current level
+    const mcpilotDir = findNearestMcpilotDirSync(currentDir);
+    if (mcpilotDir) {
+      const mcpilotConfigPath = path.join(mcpilotDir, fileName);
+      searchedPaths.push(mcpilotConfigPath);
 
-    if (fs.existsSync(mcpilotConfigPath)) {
-      return mcpilotConfigPath;
+      if (fs.existsSync(mcpilotConfigPath)) {
+        return mcpilotConfigPath;
+      }
+
+      // Move beyond the directory that contains the current .mcpilot dir
+      // so we can find the next one up in the hierarchy
+      currentDir = path.dirname(path.dirname(mcpilotDir));
+    } else {
+      // No more .mcpilot directories found upwards
+      break;
     }
 
-    // If not found in .mcpilot directory, try in the current directory
-    const configPath = path.join(currentDir, fileName);
-    searchedPaths.push(configPath);
-
-    if (fs.existsSync(configPath)) {
-      return configPath;
-    }
-
+    // Check if we've reached the root
     const parentDir = path.dirname(currentDir);
     if (parentDir === currentDir) {
-      // Reached root directory
-      if (throwIfNotFound) {
-        throw new MCPilotError(
-          "Configuration file not found",
-          "CONFIG_NOT_FOUND",
-          ErrorSeverity.HIGH,
-          { searchedPaths, fileName },
-        );
-      }
-      return null;
+      break;
     }
     currentDir = parentDir;
   }
+
+  // If we got here, the file wasn't found
+  if (throwIfNotFound) {
+    throw new MCPilotError(
+      "Configuration file not found",
+      "CONFIG_NOT_FOUND",
+      ErrorSeverity.HIGH,
+      { searchedPaths, fileName },
+    );
+  }
+  return null;
 }

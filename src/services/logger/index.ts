@@ -1,12 +1,15 @@
 import winston from "winston";
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
+import { findNearestMcpilotDirSync } from "../config/config-utils.ts";
 
-const LOG_DIR = "./logs";
+// Find nearest .mcpilot directory or default to local logs
+const mcpilotDir = findNearestMcpilotDirSync(process.cwd());
+const LOG_DIR = mcpilotDir ? join(mcpilotDir, "logs") : "./logs";
 
 // Ensure logs directory exists
 if (!existsSync(LOG_DIR)) {
-  mkdirSync(LOG_DIR);
+  mkdirSync(LOG_DIR, { recursive: true });
 }
 
 const logFileName = `mcpilot-${new Date().toISOString().split("T")[0]}.log`;

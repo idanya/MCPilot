@@ -25,24 +25,33 @@ export class RoleConfigLoader {
 
   public load(): RolesConfig {
     try {
+      let configPath: string | null = null;
+
       if (this.options.configPath) {
-        // If config path is specified, use it directly
+        // If config path is specified, verify it exists
         if (!fs.existsSync(this.options.configPath)) {
-          // Return empty config if file doesn't exist
-          return this.config;
+          throw new MCPilotError(
+            "Specified role configuration file not found",
+            "ROLE_CONFIG_NOT_FOUND",
+            ErrorSeverity.HIGH,
+            { configPath: this.options.configPath },
+          );
         }
-        this.loadFromFile(this.options.configPath);
+        configPath = this.options.configPath;
       } else {
-        // If no config path specified, search for the file
-        const configPath = findConfigFileSync(
+        // Search for the file in .mcpilot directories up the hierarchy
+        configPath = findConfigFileSync(
           process.cwd(),
           RoleConfigLoader.DEFAULT_CONFIG_NAME,
           false,
         );
-        if (configPath) {
-          this.loadFromFile(configPath);
-        }
       }
+
+      // Load the config if a file was found
+      if (configPath) {
+        this.loadFromFile(configPath);
+      }
+
       return this.config;
     } catch (error) {
       if (error instanceof MCPilotError) {

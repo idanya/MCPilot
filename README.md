@@ -2,6 +2,8 @@
 
 A general-purpose system that executes tasks using MCP tooling through prompt-based interactions with LLMs.
 
+> **Note**: This project is currently in development and not yet stable. It's a work in progress and APIs may change.
+
 ## Features
 
 - Multi-provider LLM support (OpenAI, Anthropic)

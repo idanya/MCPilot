@@ -95,6 +95,7 @@ export class AnthropicProvider extends BaseProvider {
 
         // Calculate backoff time using exponential backoff
         const backoffTime = this.calculateBackoff(attempt);
+        logger.warn(`anthropic error: ${error}`);
         logger.warn(
           `Request failed. Retrying in ${backoffTime}ms... (attempt ${
             attempt + 1
@@ -243,20 +244,25 @@ export class AnthropicProvider extends BaseProvider {
   }
 
   private createRequestOptions(session: Session): AnthropicRequestOptions {
-    return {
+    const options: AnthropicRequestOptions = {
       model: this.config.modelName,
       messages: this.formatMessages(session),
       max_tokens: this.config.maxTokens || this.getDefaultMaxTokens(),
       temperature: this.config.temperature ?? this.getDefaultTemperature(),
-      system: [
+      stream: this.config.options?.streaming || false,
+    };
+
+    if (session.systemPrompt) {
+      options.system = [
         {
           type: "text",
           text: session.systemPrompt,
           cache_control: { type: "ephemeral" },
         },
-      ],
-      stream: this.config.options?.streaming || false,
-    };
+      ];
+    }
+
+    return options;
   }
 
   private handleAnthropicError(error: any): MCPilotError {
