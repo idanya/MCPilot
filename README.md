@@ -13,73 +13,43 @@ A general-purpose system that executes tasks using MCP tooling through prompt-ba
 - Comprehensive logging and configuration
 - Interactive CLI interface
 
-## Installation
+## Usage
 
 ```bash
-npm install mcpilot
+npx mcpilot
 ```
 
 ## Quick Start
-
-### Programmatic Usage
-
-```javascript
-import { createSession, createProviderFactory, ProviderType } from 'mcpilot';
-
-// Create a provider factory and get a provider instance
-const factory = createProviderFactory();
-const provider = factory.create(ProviderType.OPENAI, {
-  name: 'openai',
-  modelName: 'gpt-4',
-  apiKey: process.env.OPENAI_API_KEY
-});
-
-// Initialize the provider
-await provider.initialize();
-
-// Create a new session with the provider
-const session = await createSession({
-  model: 'gpt-4',
-  provider: provider, // Provider is now required
-  logLevel: 'info'
-});
-
-// Execute a message
-const response = await session.executeMessage("Create a React component for a user profile");
-
-// Process the response
-console.log(response.content.text);
-```
 
 ### CLI Usage
 
 Start a new session:
 ```bash
 # Basic usage with instruction
-mcpilot start "Create a new React component"
+npx mcpilot start "Create a new React component"
 
 # Using a specific model
-mcpilot start -m gpt-4 "Optimize this function"
+npx mcpilot start -m gpt-4 "Optimize this function"
 
 # Load instructions from file
-mcpilot start -i instructions.txt
+npx mcpilot start -i instructions.txt
 
 # Use a specific role
-mcpilot start -r architect "Design a new API"
+npx mcpilot start -r architect "Design a new API"
 
 # Custom config and roles
-mcpilot start -c custom-config.json --roles-config custom-roles.json "Task description"
+npx mcpilot start -c custom-config.json --roles-config custom-roles.json "Task description"
 
 # Set working directory
-mcpilot start -w /path/to/project "Create a component for this project"
+npx mcpilot start -w /path/to/project "Create a component for this project"
 
 # Auto-approve MCP tool calls
-mcpilot start --auto-approve-tools "Generate code with MCP tools"
+npx mcpilot start --auto-approve-tools "Generate code with MCP tools"
 ```
 
 Resume a previous session:
 ```bash
-mcpilot resume ./sessions/session_123.log "Continue the previous task"
+npx mcpilot resume ./sessions/session_123.log "Continue the previous task"
 ```
 
 ### CLI Options
