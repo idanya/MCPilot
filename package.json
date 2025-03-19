@@ -3,7 +3,7 @@
   "version": "0.1.1",
   "description": "General-purpose system that executes tasks using MCP tooling through prompt-based interactions",
   "type": "module",
-  "main": "dist/index.js",
+  "main": "dist/cli/index.js",
   "scripts": {
     "build:ci": "tsc && npm run build",
     "build": "npm run clean && swc --strip-leading-paths src/ --out-dir dist && npm run postbuild",
