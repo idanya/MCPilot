@@ -600,7 +600,9 @@ export class McpHub {
       }
     }
 
-    logger.info(`Calling tool '${toolName}' on server '${serverName}'...`);
+    if (toolName !== "tools/list") {
+      logger.info(`Calling tool '${toolName}' on server '${serverName}'...`);
+    }
 
     const config = connection.server.config;
     const timeout =

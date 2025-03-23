@@ -6,26 +6,25 @@ import * as fs from "fs";
 import * as path from "path";
 import { v4 as uuidv4 } from "uuid";
 import {
-  findConfigFileSync,
-  findNearestMcpilotDirSync,
-} from "../config/config-utils.ts";
-import {
   Message,
   MessageType,
   ToolCallStatus,
 } from "../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../interfaces/base/response.ts";
 import { Session } from "../../interfaces/base/session.ts";
-import { SessionState } from "../../interfaces/base/state.ts";
 import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types.ts";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 import { ILLMProvider } from "../../interfaces/llm/provider.ts";
+import {
+  findConfigFileSync,
+  findNearestMcpilotDirSync,
+} from "../config/config-utils.ts";
 import { RoleConfigLoader } from "../config/role-config-loader.ts";
+import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
 import { ToolRequestParser } from "../parser/tool-request-parser.ts";
-import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
 import { ParsedToolRequest } from "../parser/xml-parser.ts";
-import { logger } from "../logger/index.ts";
+import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
 
 export class SessionManager {
   private currentSession: Session | null = null;
@@ -39,7 +38,6 @@ export class SessionManager {
     private readonly config: MCPilotConfig,
     private readonly provider: ILLMProvider,
     private readonly rolesConfigPath?: string,
-    private readonly initialRoleName?: string,
     private readonly workingDirectory: string = process.cwd(),
     private readonly autoApproveTools: boolean = false,
   ) {}
@@ -66,7 +64,7 @@ export class SessionManager {
   /**
    * Create a new session
    */
-  public async createSession(): Promise<Session> {
+  public async createSession(role?: string): Promise<Session> {
     if (this.currentSession) {
       throw new MCPilotError(
         "Session already exists",
@@ -79,16 +77,14 @@ export class SessionManager {
 
     this.currentSession = {
       id: uuidv4(),
-      state: SessionState.INITIALIZING,
       systemPrompt: "",
       messages: [],
       metadata: this.createDefaultMetadata(),
     };
 
-    await this.setupInitialSession();
-
-    this.currentSession.state = SessionState.READY;
-
+    if (role) {
+      await this.setupRoleContext(role);
+    }
     // Save session and log paths
     const mcpilotDir = this.findMcpilotDir();
     const logsDir = path.join(mcpilotDir, "logs");
@@ -144,7 +140,6 @@ export class SessionManager {
       }
 
       this.currentSession = sessionData;
-      this.currentSession.state = SessionState.READY;
 
       return this.currentSession;
     } catch (error) {
@@ -164,16 +159,12 @@ export class SessionManager {
     this.ensureActiveSession();
 
     try {
-      this.currentSession!.state = SessionState.PROCESSING;
-
       const newMessage = this.createMessageObject(message);
       this.addMessageToSession(newMessage);
       const response = await this.processMessageWithTools();
 
-      this.currentSession!.state = SessionState.READY;
       return response;
     } catch (error) {
-      this.currentSession!.state = SessionState.ERROR;
       throw this.handleError(error);
     }
   }
@@ -294,22 +285,13 @@ export class SessionManager {
   }
 
   /**
-   * Set up the initial session
-   */
-  private async setupInitialSession(): Promise<void> {
-    if (this.initialRoleName) {
-      await this.setupRoleContext();
-    }
-  }
-
-  /**
    * Set up role-specific context
    */
-  private async setupRoleContext(): Promise<void> {
-    const roleConfig = this.roleLoader.getRole(this.initialRoleName!);
+  private async setupRoleContext(role: string): Promise<void> {
+    const roleConfig = this.roleLoader.getRole(role);
     if (!roleConfig) {
       throw new MCPilotError(
-        `Role '${this.initialRoleName}' not found`,
+        `Role '${role}' not found`,
         "INVALID_ROLE",
         ErrorSeverity.HIGH,
       );
@@ -328,7 +310,7 @@ export class SessionManager {
       metadata: {
         ...this.currentSession!.metadata,
         role: {
-          name: this.initialRoleName!,
+          name: role,
           definition: roleConfig.definition,
           instructions: roleConfig.instructions,
         },
@@ -396,7 +378,6 @@ export class SessionManager {
       // Initialize session data with default values
       const sessionData: Session = {
         id: "",
-        state: SessionState.INITIALIZING,
         systemPrompt: "",
         messages: [],
         metadata: this.createDefaultMetadata(),
@@ -471,16 +452,13 @@ export class SessionManager {
   ): void {
     if (!log.metadata) return;
 
-    const { sessionId, messages, state, systemPrompt } = log.metadata;
+    const { sessionId, messages, systemPrompt } = log.metadata;
 
     if (sessionId) {
       sessionData.id = sessionId;
     }
     if (messages) {
       sessionData.messages = messages;
-    }
-    if (state) {
-      sessionData.state = state;
     }
     if (systemPrompt) {
       sessionData.systemPrompt = systemPrompt;
@@ -588,7 +566,7 @@ export class SessionManager {
    */
   private async handleToolRequests(
     toolRequests: ParsedToolRequest[],
-  ): Promise<void> {
+  ): Promise<boolean> {
     // If there's a tool request, process only the first one
     if (toolRequests.length > 0) {
       const request = toolRequests[0];
@@ -603,11 +581,14 @@ export class SessionManager {
 
         const toolMessage = this.createToolCallMessage(request, result);
         await this.executeMessage(toolMessage.content);
+        return true;
       } catch (error) {
         logger.error("Tool call error:", error);
         throw error;
       }
     }
+
+    return false;
   }
 
   /**

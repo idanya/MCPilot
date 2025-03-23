@@ -30,7 +30,6 @@ async function createConfig(
 }
 
 export async function handleStart(
-  sessionManager: { current: SessionManager | null },
   providerFactory: ProviderFactory,
   instruction: string,
   options: MCPilotCLIOptions,
@@ -43,37 +42,22 @@ export async function handleStart(
   const provider = await createProvider(providerFactory, config, options);
 
   // Initialize session manager with config and roles
-  sessionManager.current = new SessionManager(
+  const sessionManager = new SessionManager(
     config,
     provider,
     options.rolesConfig,
-    options.role,
     options.workingDirectory,
     options.autoApproveTools,
   );
 
-  await sessionManager.current.createSession();
+  await sessionManager.createSession(options.role);
   logger.info("Session started successfully");
-  await handleExecute(sessionManager.current, instruction);
-}
 
-export async function handleExecute(
-  sessionManager: SessionManager | null,
-  message: string,
-): Promise<void> {
-  if (!sessionManager) {
-    throw new MCPilotError(
-      "No active session",
-      "NO_SESSION",
-      ErrorSeverity.HIGH,
-    );
-  }
-
-  await sessionManager.executeMessage(message);
+  await sessionManager.executeMessage(instruction);
+  process.exit(0);
 }
 
 export async function handleResume(
-  sessionManager: SessionManager | null,
   logPath: string,
   instruction: string,
   providerFactory: ProviderFactory,
@@ -86,19 +70,18 @@ export async function handleResume(
   const config = await createConfig(options);
   const provider = await createProvider(providerFactory, config, options);
 
-  if (!sessionManager) {
-    sessionManager = new SessionManager(
-      config,
-      provider,
-      options.rolesConfig,
-      undefined,
-      options.workingDirectory,
-    );
-  }
+  const sessionManager = new SessionManager(
+    config,
+    provider,
+    options.rolesConfig,
+    options.workingDirectory,
+    options.autoApproveTools,
+  );
 
   await sessionManager.resumeSession(logPath);
   logger.info("Session resumed successfully");
-  await handleExecute(sessionManager, instruction);
+  await sessionManager.executeMessage(instruction);
+  process.exit(0);
 }
 
 async function createProvider(

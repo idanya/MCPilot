@@ -4,12 +4,10 @@
  */
 
 import type { Message } from "./message.ts";
-import type { SessionState } from "./state.ts";
 
 export interface Session {
   // Core session properties
   id: string;
-  state: SessionState;
   systemPrompt: string;
   messages: Message[];
   metadata: SessionMetadata;
