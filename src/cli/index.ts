@@ -31,12 +31,10 @@ const version = pkg.version;
 
 class MCPilotCLI {
   private program: Command;
-  private sessionManager: { current: SessionManager | null };
   private providerFactory: ProviderFactory;
 
   constructor(autoSetup = false) {
     this.program = new Command();
-    this.sessionManager = { current: null };
     this.providerFactory = new ProviderFactory();
 
     // Register built-in providers
@@ -122,12 +120,9 @@ class MCPilotCLI {
           }
         }
 
-        handleStart(
-          this.sessionManager,
-          this.providerFactory,
-          finalInstruction!,
-          options,
-        ).catch(handleError);
+        handleStart(this.providerFactory, finalInstruction!, options).catch(
+          handleError,
+        );
       });
 
     this.program
@@ -142,7 +137,6 @@ class MCPilotCLI {
           options: MCPilotCLIOptions,
         ) => {
           handleResume(
-            this.sessionManager.current,
             logPath,
             instruction,
             this.providerFactory,
