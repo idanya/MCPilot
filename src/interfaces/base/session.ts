@@ -3,6 +3,7 @@
  * message flow and logging across a single interaction session.
  */
 
+import { RoleConfig } from "../config/types.ts";
 import type { Message } from "./message.ts";
 
 export interface Session {
@@ -20,11 +21,7 @@ export interface SessionMetadata {
     os: string;
     shell: string;
   };
-  role?: {
-    name: string;
-    definition: string;
-    instructions: string;
-  };
+  role?: RoleConfig;
   custom?: Record<string, any>;
 }
 

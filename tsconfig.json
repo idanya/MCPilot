@@ -7,9 +7,9 @@
     "noEmit": true,
     "lib": [
       "esnext",      
-      "esnext.asynciterable",
+      "esnext.asynciterable",      
     ],
-    "types": [ "node" ],
+    "types": [ "node", "jest" ],
     "outDir": "dist",
     "rootDir": "src",
     "strict": true,

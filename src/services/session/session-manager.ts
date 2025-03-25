@@ -22,6 +22,7 @@ import {
 import { RoleConfigLoader } from "../config/role-config-loader.ts";
 import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
+import { McpServerConfig } from "../config/mcp-schema.ts";
 import { ToolRequestParser } from "../parser/tool-request-parser.ts";
 import { ParsedToolRequest } from "../parser/xml-parser.ts";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
@@ -32,7 +33,6 @@ export class SessionManager {
   private promptEnhancer!: SystemPromptEnhancer;
   private mcpHub!: McpHub;
   private roleLoader!: RoleConfigLoader;
-  private currentRole?: RoleConfig;
 
   constructor(
     private readonly config: MCPilotConfig,
@@ -47,7 +47,7 @@ export class SessionManager {
   /**
    * Initialize session manager components
    */
-  public async init(): Promise<void> {
+  private async init(): Promise<void> {
     await this.createMcpHub();
     this.initializeHelpers();
     await this.loadRoleConfiguration();
@@ -73,8 +73,6 @@ export class SessionManager {
       );
     }
 
-    await this.init();
-
     this.currentSession = {
       id: uuidv4(),
       systemPrompt: "",
@@ -82,9 +80,9 @@ export class SessionManager {
       metadata: this.createDefaultMetadata(),
     };
 
-    if (role) {
-      await this.setupRoleContext(role);
-    }
+    await this.loadRoleConfiguration();
+    await this.setupRoleContext(role);
+
     // Save session and log paths
     const mcpilotDir = this.findMcpilotDir();
     const logsDir = path.join(mcpilotDir, "logs");
@@ -240,9 +238,26 @@ export class SessionManager {
   /**
    * Create the MCP Hub instance
    */
-  private async createMcpHub(): Promise<void> {
+  private async createMcpHub(role?: RoleConfig): Promise<void> {
+    // Get all available servers from config
+    const allServers = this.config.mcp?.servers || {};
+
+    // Filter servers based on role's availableServers if defined
+    let filteredServers = allServers;
+    if (role?.availableServers && role?.availableServers.length > 0) {
+      filteredServers = Object.entries(allServers)
+        .filter(([serverName]) => role?.availableServers?.includes(serverName))
+        .reduce(
+          (acc, [serverName, serverConfig]) => {
+            acc[serverName] = serverConfig;
+            return acc;
+          },
+          {} as Record<string, McpServerConfig>,
+        );
+    }
+
     this.mcpHub = new McpHub({
-      servers: this.config.mcp?.servers || {},
+      servers: filteredServers,
       autoApproveTools: this.autoApproveTools,
     });
     await this.mcpHub.initializeMcpServers();
@@ -287,33 +302,37 @@ export class SessionManager {
   /**
    * Set up role-specific context
    */
-  private async setupRoleContext(role: string): Promise<void> {
-    const roleConfig = this.roleLoader.getRole(role);
-    if (!roleConfig) {
-      throw new MCPilotError(
-        `Role '${role}' not found`,
-        "INVALID_ROLE",
-        ErrorSeverity.HIGH,
-      );
+  private async setupRoleContext(role?: string): Promise<void> {
+    let roleConfig: RoleConfig | undefined;
+    if (role) {
+      roleConfig = this.roleLoader.getRole(role);
+      if (!roleConfig) {
+        throw new MCPilotError(
+          `Role '${role}' not found`,
+          "INVALID_ROLE",
+          ErrorSeverity.HIGH,
+        );
+      }
     }
-    this.currentRole = roleConfig;
+
+    // Reinitialize MCP hub with role-specific servers
+    await this.createMcpHub(roleConfig);
+    this.initializeHelpers();
 
     // Build enhanced system prompt
-    this.promptEnhancer.setBasePrompt(roleConfig.definition);
-    this.promptEnhancer.addSection({
-      title: "Role Instructions",
-      content: roleConfig.instructions,
-    });
+    if (roleConfig) {
+      this.promptEnhancer.setBasePrompt(roleConfig.definition);
+      this.promptEnhancer.addSection({
+        title: "Role Instructions",
+        content: roleConfig.instructions,
+      });
+    }
 
     this.updateSession({
       systemPrompt: await this.promptEnhancer.buildSystemPrompt(),
       metadata: {
         ...this.currentSession!.metadata,
-        role: {
-          name: role,
-          definition: roleConfig.definition,
-          instructions: roleConfig.instructions,
-        },
+        role: roleConfig,
       },
     });
   }
@@ -344,16 +363,6 @@ export class SessionManager {
       type: MessageType.USER,
       content: message,
       timestamp: new Date(),
-      metadata: this.currentRole
-        ? {
-            custom: {
-              role: {
-                definition: this.currentRole.definition,
-                instructions: this.currentRole.instructions,
-              },
-            },
-          }
-        : undefined,
     };
   }
 

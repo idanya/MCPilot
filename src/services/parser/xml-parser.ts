@@ -100,8 +100,16 @@ export class XmlParser {
     while ((match = pattern.exec(content)) !== null) {
       const [, paramName, paramValue] = match;
 
+      // Check if this might be an array of items
+      if (
+        this.hasNestedTags(paramValue) &&
+        this.containsOnlyItemTags(paramValue)
+      ) {
+        // Parse as array of items
+        parameters[paramName] = this.parseArrayItems(paramValue);
+      }
       // Try to parse nested parameters
-      if (this.hasNestedTags(paramValue)) {
+      else if (this.hasNestedTags(paramValue)) {
         try {
           parameters[paramName] = this.parseParameters(paramValue);
         } catch {
@@ -114,6 +122,61 @@ export class XmlParser {
     }
 
     return parameters;
+  }
+
+  /**
+   * Check if content contains only <item> tags at the top level
+   */
+  private containsOnlyItemTags(content: string): boolean {
+    const trimmed = content.trim();
+    // Quick check if it might contain item tags
+    if (!trimmed.includes("<item>")) return false;
+
+    // Use a regex to match top-level tags only
+    // This pattern matches opening tags that are not inside other tags
+    const topLevelTagPattern = /<([^>/]+)(?:\s[^>]*)?>([\s\S]*?)<\/\1>/g;
+    const topLevelTags: string[] = [];
+    let tagMatch;
+
+    while ((tagMatch = topLevelTagPattern.exec(trimmed)) !== null) {
+      const tagName = tagMatch[1];
+      topLevelTags.push(tagName);
+    }
+
+    // Check if all top-level tags are "item" tags
+    return (
+      topLevelTags.length > 0 && topLevelTags.every((tag) => tag === "item")
+    );
+  }
+
+  /**
+   * Parse array items from content
+   */
+  private parseArrayItems(content: string): any[] {
+    const items: any[] = [];
+    // Use a more robust pattern that can handle nested tags within item elements
+    const itemPattern = /<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/g;
+    let itemMatch;
+
+    while ((itemMatch = itemPattern.exec(content)) !== null) {
+      const [, itemValue] = itemMatch;
+
+      // Check if item has nested structure
+      if (this.hasNestedTags(itemValue)) {
+        try {
+          const nestedParams = this.parseParameters(itemValue);
+          // If parsing succeeded, add the object to the array
+          items.push(nestedParams);
+        } catch (error) {
+          // If nested parsing fails, store as string
+          items.push(this.normalizeValue(itemValue));
+        }
+      } else {
+        items.push(this.normalizeValue(itemValue));
+      }
+    }
+
+    return items;
   }
 
   /**

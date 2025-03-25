@@ -125,7 +125,28 @@ ${argsXml}
 
     // Convert arguments to XML format
     const argsXml = Object.entries(args)
-      .map(([key, value]) => `<${key}>${value}</${key}>`)
+      .map(([key, value]) => {
+        if (Array.isArray(value)) {
+          // Handle arrays by creating nested items
+          const items = value
+            .map((item) => {
+              if (typeof item === "object" && item !== null) {
+                // Handle object items by creating nested name/value pairs
+                const objProps = Object.entries(item)
+                  .map(
+                    ([propName, propValue]) =>
+                      `    <${propName}>${propValue}</${propName}>`,
+                  )
+                  .join("\n");
+                return `  <item>\n${objProps}\n  </item>`;
+              }
+              return `  <item>${item}</item>`;
+            })
+            .join("\n");
+          return `<${key}>\n${items}\n</${key}>`;
+        }
+        return `<${key}>${value}</${key}>`;
+      })
       .join("\n");
 
     return `<use_mcp_tool>
@@ -151,7 +172,28 @@ ${argsXml}
 
     // Convert arguments to XML format
     const argsXml = Object.entries(example.input)
-      .map(([key, value]) => `<${key}>${value}</${key}>`)
+      .map(([key, value]) => {
+        if (Array.isArray(value)) {
+          // Handle arrays by creating nested items
+          const items = value
+            .map((item) => {
+              if (typeof item === "object" && item !== null) {
+                // Handle object items by creating nested name/value pairs
+                const objProps = Object.entries(item)
+                  .map(
+                    ([propName, propValue]) =>
+                      `    <${propName}>${propValue}</${propName}>`,
+                  )
+                  .join("\n");
+                return `  <item>\n${objProps}\n  </item>`;
+              }
+              return `  <item>${item}</item>`;
+            })
+            .join("\n");
+          return `<${key}>\n${items}\n</${key}>`;
+        }
+        return `<${key}>${value}</${key}>`;
+      })
       .join("\n");
 
     return `${description}<use_mcp_tool>
@@ -177,7 +219,22 @@ ${argsXml}
       case "boolean":
         return prop.example || "false";
       case "array":
-        return prop.example || "[]";
+        // If array has items of type object, return an array with an example object
+        if (
+          prop.items &&
+          prop.items.type === "object" &&
+          prop.items.properties
+        ) {
+          const exampleObj: Record<string, any> = {};
+          // Create example object with properties from schema
+          Object.entries(prop.items.properties).forEach(
+            ([propName, propDef]: [string, any]) => {
+              exampleObj[propName] = this.getDefaultValue(propDef);
+            },
+          );
+          return prop.example || [exampleObj];
+        }
+        return prop.example || ["example_item"];
       case "object":
         return prop.example || "{}";
       default:
