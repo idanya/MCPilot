@@ -8,6 +8,7 @@ import { z } from "zod";
 const roleSchema = z.object({
   definition: z.string().min(1),
   instructions: z.string().min(1),
+  availableServers: z.array(z.string()).optional(),
 });
 
 // Main roles configuration schema
