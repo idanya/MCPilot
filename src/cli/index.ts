@@ -17,10 +17,9 @@ import {
   ProviderType,
 } from "../providers/index.ts";
 import { logger } from "../services/logger/index.ts";
-import { SessionManager } from "../services/session/index.ts";
 import { handleError, handleResume, handleStart } from "./actions.ts";
-import { setupRolesCommands } from "./roles-commands.ts";
 import { setupProvidersCommands } from "./providers-commands.ts";
+import { setupRolesCommands } from "./roles-commands.ts";
 import { MCPilotCLIOptions } from "./types.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -82,6 +81,7 @@ class MCPilotCLI {
         "Path to roles configuration file",
         // No default path here as we'll search for it
       )
+      .option("--role-file <path>", "Path to a single role configuration file")
       .option(
         "-w, --working-directory <path>",
         "Working directory for the session",
