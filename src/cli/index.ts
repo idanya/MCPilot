@@ -17,10 +17,9 @@ import {
   ProviderType,
 } from "../providers/index.ts";
 import { logger } from "../services/logger/index.ts";
-import { SessionManager } from "../services/session/index.ts";
 import { handleError, handleResume, handleStart } from "./actions.ts";
-import { setupRolesCommands } from "./roles-commands.ts";
 import { setupProvidersCommands } from "./providers-commands.ts";
+import { setupRolesCommands } from "./roles-commands.ts";
 import { MCPilotCLIOptions } from "./types.ts";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

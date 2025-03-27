@@ -81,7 +81,10 @@ export class SessionManager {
     };
 
     await this.loadRoleConfiguration();
-    await this.setupRoleContext(role);
+    const roleConfig = await this.getRoleConfig(role);
+    if (roleConfig) {
+      await this.setupRoleContext(roleConfig);
+    }
 
     // Save session and log paths
     const mcpilotDir = this.findMcpilotDir();
@@ -299,10 +302,7 @@ export class SessionManager {
     };
   }
 
-  /**
-   * Set up role-specific context
-   */
-  private async setupRoleContext(role?: string): Promise<void> {
+  private async getRoleConfig(role?: string): Promise<RoleConfig | undefined> {
     let roleConfig: RoleConfig | undefined;
     if (role) {
       roleConfig = this.roleLoader.getRole(role);
@@ -314,7 +314,12 @@ export class SessionManager {
         );
       }
     }
-
+    return roleConfig;
+  }
+  /**
+   * Set up role-specific context
+   */
+  private async setupRoleContext(roleConfig: RoleConfig): Promise<void> {
     // Reinitialize MCP hub with role-specific servers
     await this.createMcpHub(roleConfig);
     this.initializeHelpers();
