@@ -1,6 +1,6 @@
 {
   "name": "mcpilot",
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "General-purpose system that executes tasks using MCP tooling through prompt-based interactions",
   "type": "module",
   "main": "dist/cli/index.js",
