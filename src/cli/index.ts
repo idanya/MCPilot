@@ -81,6 +81,7 @@ class MCPilotCLI {
         "Path to roles configuration file",
         // No default path here as we'll search for it
       )
+      .option("--role-file <path>", "Path to a single role configuration file")
       .option(
         "-w, --working-directory <path>",
         "Working directory for the session",

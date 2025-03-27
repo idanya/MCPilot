@@ -20,6 +20,7 @@ import {
   findNearestMcpilotDirSync,
 } from "../config/config-utils.ts";
 import { RoleConfigLoader } from "../config/role-config-loader.ts";
+import { validateRolesConfig } from "../config/role-schema.ts";
 import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
 import { McpServerConfig } from "../config/mcp-schema.ts";
@@ -40,6 +41,7 @@ export class SessionManager {
     private readonly rolesConfigPath?: string,
     private readonly workingDirectory: string = process.cwd(),
     private readonly autoApproveTools: boolean = false,
+    private readonly roleFilePath?: string,
   ) {}
 
   // PUBLIC METHODS
@@ -301,8 +303,41 @@ export class SessionManager {
       },
     };
   }
-
   private async getRoleConfig(role?: string): Promise<RoleConfig | undefined> {
+    // If roleFilePath is specified, load the role from that file directly
+    if (this.roleFilePath) {
+      try {
+        const fileContent = fs.readFileSync(this.roleFilePath, "utf8");
+        const fileConfig = JSON.parse(fileContent);
+
+        // We expect this file to contain a single role configuration
+        const validationResult = validateRolesConfig({
+          roles: { single_role: fileConfig },
+          defaultRole: "single_role",
+        });
+
+        if (!validationResult.success) {
+          throw new MCPilotError(
+            "Invalid role configuration in file",
+            "ROLE_CONFIG_FILE_ERROR",
+            ErrorSeverity.HIGH,
+            { errors: validationResult.error.issues },
+          );
+        }
+
+        return fileConfig;
+      } catch (error) {
+        if (error instanceof MCPilotError) throw error;
+        throw new MCPilotError(
+          "Failed to load role from file",
+          "ROLE_FILE_ERROR",
+          ErrorSeverity.HIGH,
+          { filePath: this.roleFilePath, error },
+        );
+      }
+    }
+
+    // Otherwise use the standard role loading mechanism
     let roleConfig: RoleConfig | undefined;
     if (role) {
       roleConfig = this.roleLoader.getRole(role);

@@ -48,6 +48,7 @@ export async function handleStart(
     options.rolesConfig,
     options.workingDirectory,
     options.autoApproveTools,
+    options.roleFile,
   );
 
   await sessionManager.createSession(options.role);
@@ -76,6 +77,7 @@ export async function handleResume(
     options.rolesConfig,
     options.workingDirectory,
     options.autoApproveTools,
+    options.roleFile,
   );
 
   await sessionManager.resumeSession(logPath);
