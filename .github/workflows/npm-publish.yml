@@ -43,7 +43,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       id-token: write
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +60,22 @@ jobs:
           name: dist
           path: dist/
       
+      - name: Update package version
+        run: |
+          # Extract version from git tag (remove 'v' prefix)
+          VERSION=${GITHUB_REF#refs/tags/v}
+          # Update package.json version
+          npm version $VERSION --no-git-tag-version --allow-same-version
+
+          # Configure Git
+          git config --global user.name 'GitHub Actions Bot'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          
+          # Commit and push the version change
+          git add package.json
+          git commit -m "chore: update package version to ${VERSION} [skip ci]"
+          git push
+       
       - name: Make CLI executable
         run: chmod +x ./dist/cli/index.js
       
