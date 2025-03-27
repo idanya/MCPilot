@@ -67,6 +67,12 @@ jobs:
         run: |
           # Extract version from git tag (remove 'v' prefix)
           VERSION=${GITHUB_REF#refs/tags/v}
+
+          # Fetch and checkout main
+          git fetch origin main
+          git checkout main
+          git pull origin main
+          
           # Update package.json version
           npm version $VERSION --no-git-tag-version --allow-same-version
 
