@@ -77,7 +77,7 @@ jobs:
           # Commit and push the version change
           git add package.json
           git commit -m "chore: update package version to ${VERSION} [skip ci]"
-          git push origin HEAD:${GITHUB_REF_NAME}
+          git push --no-tags origin main
        
       - name: Make CLI executable
         run: chmod +x ./dist/cli/index.js
