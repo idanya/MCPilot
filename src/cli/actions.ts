@@ -10,13 +10,13 @@ import { SessionManager } from "../services/session/index.ts";
 import { MCPilotCLIOptions } from "./types.ts";
 import { createLogger, logger } from "../services/logger/index.ts";
 
-export function handleError(error: any): never {
+export async function handleError(error: any) {
   if (error instanceof MCPilotError) {
     logger.error(`Error: ${error.message} (${error.code})`);
   } else {
     logger.error("Unexpected error:", error);
   }
-  process.exit(1);
+  await new Promise(() => logger.end(() => process.exit(1)));
 }
 
 async function createConfig(

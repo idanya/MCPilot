@@ -14,6 +14,7 @@ export interface AnthropicConfig extends ProviderConfig {
   apiVersion?: string;
   maxTokensToSample?: number;
   stopSequences?: string[];
+  thinking?: boolean;
 }
 
 export interface ProviderConfigMap {
