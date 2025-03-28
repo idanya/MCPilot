@@ -16,10 +16,14 @@ import {
   AnthropicRequestOptions,
   AnthropicResponse,
 } from "./types.ts";
-import { TextBlock } from "@anthropic-ai/sdk/resources/index.mjs";
+import {
+  TextBlock,
+  ThinkingConfigParam,
+} from "@anthropic-ai/sdk/resources/index.mjs";
 import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { logger } from "../../../services/logger/index.ts";
+import { AnthropicConfig } from "providers/provider-config.ts";
 
 // Default retry configuration
 const DEFAULT_MAX_RETRIES = 3;
@@ -31,12 +35,13 @@ const RETRYABLE_ERROR_TYPES = [
   "connection_error",
 ];
 
-export class AnthropicProvider extends BaseProvider {
+export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
   private client: Anthropic;
   private maxRetries: number;
   private initialBackoffMs: number;
+  private isThinkingEnabled: boolean;
 
-  constructor(config: ProviderConfig) {
+  constructor(config: AnthropicConfig) {
     super();
     this.client = new Anthropic({
       apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY,
@@ -44,6 +49,12 @@ export class AnthropicProvider extends BaseProvider {
     this.config = config;
     this.maxRetries = DEFAULT_MAX_RETRIES;
     this.initialBackoffMs = DEFAULT_INITIAL_BACKOFF_MS;
+    this.isThinkingEnabled =
+      config.thinking || config.modelName.indexOf("3.7") !== -1;
+
+    logger.debug(
+      `Anthropic provider initialized with model: ${config.modelName} and thinking: ${this.isThinkingEnabled}`,
+    );
   }
 
   /**
@@ -53,6 +64,11 @@ export class AnthropicProvider extends BaseProvider {
   async *sendStreamedRequest(session: Session): ApiStream {
     let attempt = 0;
     let lastError: any;
+
+    const thinkingProperty: { thinking?: ThinkingConfigParam } = this
+      .isThinkingEnabled
+      ? { thinking: { type: "enabled", budget_tokens: 1024 } }
+      : {};
 
     while (attempt <= this.maxRetries) {
       try {
@@ -67,7 +83,7 @@ export class AnthropicProvider extends BaseProvider {
           messages: options.messages,
           model: options.model,
           max_tokens: options.max_tokens,
-          thinking: { type: "enabled", budget_tokens: 1024 },
+          ...thinkingProperty,
           stream: true,
           system: options.system,
           temperature: options.temperature || 1,

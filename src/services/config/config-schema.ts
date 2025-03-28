@@ -40,6 +40,7 @@ const anthropicConfigSchema = z.object({
   apiVersion: z.string().optional(),
   maxTokensToSample: z.number().positive().optional(),
   stopSequences: z.array(z.string()).optional(),
+  thinking: z.boolean().optional(),
 });
 
 const localConfigSchema = z.object({
