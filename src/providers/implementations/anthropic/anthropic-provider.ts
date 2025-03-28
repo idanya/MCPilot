@@ -51,7 +51,7 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
     this.maxRetries = DEFAULT_MAX_RETRIES;
     this.initialBackoffMs = DEFAULT_INITIAL_BACKOFF_MS;
     this.isThinkingEnabled =
-      config.thinking || config.modelName.indexOf("3.7") !== -1;
+      config.thinking ?? config.modelName.indexOf("3.7") !== -1;
 
     logger.debug(
       `Anthropic provider initialized with model: ${config.modelName} and thinking: ${this.isThinkingEnabled}`,
