@@ -85,8 +85,8 @@ export class ToolRequestParser {
 
     if (!result.isValid) {
       logger.warn(
-        `Validation failed for tool ${request.toolName}: ${result.errors.join(
-          ", ",
+        `Validation failed for tool ${request.toolName}: ${JSON.stringify(
+          result.errors.join(", "),
         )}`,
       );
       throw new ToolRequestError("Invalid parameters", {
