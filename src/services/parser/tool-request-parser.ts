@@ -1,3 +1,4 @@
+import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
 import { ParameterValidator } from "./parameter-validator.ts";
 import { ParsedToolRequest, XmlParser } from "./xml-parser.ts";
@@ -68,6 +69,9 @@ export class ToolRequestParser {
     const toolInfo = toolCatalog.getToolDocumentation(request.toolName);
 
     if (!toolInfo) {
+      logger.warn(
+        `Tool ${request.toolName} not found in catalog. Skipping validation.`,
+      );
       throw new ToolRequestError(`Unknown tool: ${request.toolName}`, {
         code: "UNKNOWN_TOOL",
       });
@@ -80,6 +84,11 @@ export class ToolRequestParser {
     );
 
     if (!result.isValid) {
+      logger.warn(
+        `Validation failed for tool ${request.toolName}: ${result.errors.join(
+          ", ",
+        )}`,
+      );
       throw new ToolRequestError("Invalid parameters", {
         code: "VALIDATION_ERROR",
         details: result.errors,
