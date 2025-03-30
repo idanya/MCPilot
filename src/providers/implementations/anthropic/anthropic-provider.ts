@@ -2,29 +2,28 @@
  * Anthropic provider implementation
  */
 import { Anthropic } from "@anthropic-ai/sdk";
-import { Session } from "../../../interfaces/base/session.ts";
+import {
+  TextBlock,
+  ThinkingConfigParam,
+} from "@anthropic-ai/sdk/resources/index.mjs";
+import { AnthropicConfig } from "providers/provider-config.ts";
+import { v4 as uuidv4 } from "uuid";
 import { MessageType } from "../../../interfaces/base/message.ts";
 import { Response, ResponseType } from "../../../interfaces/base/response.ts";
+import { Session } from "../../../interfaces/base/session.ts";
 import {
   ErrorSeverity,
   MCPilotError,
 } from "../../../interfaces/error/types.ts";
-import { ProviderConfig } from "../../../interfaces/llm/provider.ts";
+import { logger } from "../../../services/logger/index.ts";
 import { BaseProvider } from "../../base-provider.ts";
+import { ApiStream, ApiStreamChunk } from "../../stream.ts";
+import { arrayFromAsyncGenerator } from "../../utils.ts";
 import {
   AnthropicError,
   AnthropicRequestOptions,
   AnthropicResponse,
 } from "./types.ts";
-import {
-  TextBlock,
-  ThinkingConfigParam,
-} from "@anthropic-ai/sdk/resources/index.mjs";
-import { v4 as uuidv4 } from "uuid";
-import { ApiStream, ApiStreamChunk } from "../../stream.ts";
-import { logger } from "../../../services/logger/index.ts";
-import { AnthropicConfig } from "providers/provider-config.ts";
-import { arrayFromAsyncGenerator } from "../../utils.ts";
 
 // Default retry configuration
 const DEFAULT_MAX_RETRIES = 3;

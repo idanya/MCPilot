@@ -602,7 +602,10 @@ export class SessionManager {
     try {
       return await this.toolRequestParser.parseRequest(responseText);
     } catch (error) {
-      logger.error("Error processing message with tools:", error);
+      logger.error(
+        "Error processing message with tools:",
+        JSON.stringify(error),
+      );
       await this.executeMessage(
         `Error processing message with tools: ${JSON.stringify(error)}`,
       );
