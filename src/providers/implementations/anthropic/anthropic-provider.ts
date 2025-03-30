@@ -16,10 +16,15 @@ import {
   AnthropicRequestOptions,
   AnthropicResponse,
 } from "./types.ts";
-import { TextBlock } from "@anthropic-ai/sdk/resources/index.mjs";
+import {
+  TextBlock,
+  ThinkingConfigParam,
+} from "@anthropic-ai/sdk/resources/index.mjs";
 import { v4 as uuidv4 } from "uuid";
 import { ApiStream, ApiStreamChunk } from "../../stream.ts";
 import { logger } from "../../../services/logger/index.ts";
+import { AnthropicConfig } from "providers/provider-config.ts";
+import { arrayFromAsyncGenerator } from "../../utils.ts";
 
 // Default retry configuration
 const DEFAULT_MAX_RETRIES = 3;
@@ -31,12 +36,13 @@ const RETRYABLE_ERROR_TYPES = [
   "connection_error",
 ];
 
-export class AnthropicProvider extends BaseProvider {
+export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
   private client: Anthropic;
   private maxRetries: number;
   private initialBackoffMs: number;
+  private isThinkingEnabled: boolean;
 
-  constructor(config: ProviderConfig) {
+  constructor(config: AnthropicConfig) {
     super();
     this.client = new Anthropic({
       apiKey: config.apiKey || process.env.ANTHROPIC_API_KEY,
@@ -44,6 +50,12 @@ export class AnthropicProvider extends BaseProvider {
     this.config = config;
     this.maxRetries = DEFAULT_MAX_RETRIES;
     this.initialBackoffMs = DEFAULT_INITIAL_BACKOFF_MS;
+    this.isThinkingEnabled =
+      config.thinking ?? config.modelName.indexOf("3.7") !== -1;
+
+    logger.debug(
+      `Anthropic provider initialized with model: ${config.modelName} and thinking: ${this.isThinkingEnabled}`,
+    );
   }
 
   /**
@@ -53,6 +65,11 @@ export class AnthropicProvider extends BaseProvider {
   async *sendStreamedRequest(session: Session): ApiStream {
     let attempt = 0;
     let lastError: any;
+
+    const thinkingProperty: { thinking?: ThinkingConfigParam } = this
+      .isThinkingEnabled
+      ? { thinking: { type: "enabled", budget_tokens: 1024 } }
+      : {};
 
     while (attempt <= this.maxRetries) {
       try {
@@ -67,21 +84,31 @@ export class AnthropicProvider extends BaseProvider {
           messages: options.messages,
           model: options.model,
           max_tokens: options.max_tokens,
-          thinking: { type: "enabled", budget_tokens: 1024 },
+          ...thinkingProperty,
           stream: true,
           system: options.system,
           temperature: options.temperature || 1,
         });
 
+        let hasNewLine = true;
         for await (const chunk of streamResponse) {
           const processedChunk = this.processStreamChunk(chunk);
           if (processedChunk === undefined) {
             continue;
           }
-          if (processedChunk?.type === "message_stop") {
-            return;
+          if (processedChunk?.type === "text") {
+            process.stdout.write(processedChunk.text);
+
+            // Keep track of newline when streaming the text - just for formatting
+            hasNewLine = processedChunk.text.endsWith("\n");
+          } else if (processedChunk?.type === "message_stop") {
+            break;
           }
           yield processedChunk;
+        }
+
+        if (!hasNewLine) {
+          process.stdout.write("\n");
         }
 
         logger.info("Request completed");
@@ -134,17 +161,18 @@ export class AnthropicProvider extends BaseProvider {
       };
 
       const stream = this.sendStreamedRequest(session);
-      const iterator = stream[Symbol.asyncIterator]();
-      let gotThinkingBlock = false;
-      for await (const chunk of iterator) {
+      const allChunks = await arrayFromAsyncGenerator(stream);
+      let thinkingScope: string | undefined = undefined;
+
+      for (const chunk of allChunks) {
         this.updateResponseFromChunk(response, textBlock, chunk);
-        if (!gotThinkingBlock) {
-          const thinkingScope = this.extractThinkingContent(textBlock.text);
-          if (thinkingScope) {
-            logger.info(thinkingScope);
-            gotThinkingBlock = true;
-          }
+        if (!thinkingScope) {
+          thinkingScope = this.extractThinkingContent(textBlock.text);
         }
+      }
+
+      if (thinkingScope) {
+        logger.info(`Thought:\n${thinkingScope}`);
       }
 
       return response;
@@ -158,9 +186,9 @@ export class AnthropicProvider extends BaseProvider {
    * @param text The input text to search for thinking tags
    * @returns The content between thinking tags or empty string if not found
    */
-  private extractThinkingContent(text: string): string {
+  private extractThinkingContent(text: string): string | undefined {
     const thinkingMatch = text.match(/<thinking>([\s\S]*?)<\/thinking>/);
-    return thinkingMatch ? thinkingMatch[1].trim() : "";
+    return thinkingMatch ? thinkingMatch[1].trim() : undefined;
   }
 
   protected async parseResponse(
@@ -363,7 +391,6 @@ export class AnthropicProvider extends BaseProvider {
       case "thinking_delta":
         return { type: "reasoning", text: chunk.delta.thinking };
       case "text_delta":
-        process.stdout.write(chunk.delta.text);
         return { type: "text", text: chunk.delta.text };
       case "signature_delta":
         return { type: "text", text: "" };
