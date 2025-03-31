@@ -121,24 +121,8 @@ export class ParameterValidator {
     schema: ToolSchema,
     errors: ValidationError[],
   ): void {
-    // For arrays and objects, try to parse as JSON only if value starts with [ or {
-    let parsedValue = value;
-    // if ((property.type === "array" && value.trim().startsWith("[")) ||
-    //     (property.type === "object" && value.trim().startsWith("{"))) {
-    //   try {
-    //     parsedValue = JSON.parse(value);
-    //   } catch {
-    //     errors.push({
-    //       parameter: name,
-    //       message: `Invalid JSON format for ${name}`,
-    //       code: ValidationErrorCode.INVALID_TYPE,
-    //     });
-    //     return;
-    //   }
-    // }
-
     // Basic type validation
-    const typeValid = this.validateType(parsedValue, property.type);
+    const typeValid = this.validateType(value, property.type);
     if (!typeValid) {
       errors.push({
         parameter: name,
@@ -181,7 +165,7 @@ export class ParameterValidator {
 
     // Validate enum values
     if (property.enum) {
-      if (!property.enum.includes(parsedValue)) {
+      if (!property.enum.includes(value)) {
         errors.push({
           parameter: name,
           message: `Value must be one of: ${property.enum.join(", ")}`,
@@ -191,17 +175,13 @@ export class ParameterValidator {
     }
 
     // Validate array items
-    if (
-      property.type === "array" &&
-      schema.items &&
-      Array.isArray(parsedValue)
-    ) {
-      this.validateArrayItems(name, parsedValue, schema.items, errors);
+    if (property.type === "array" && schema.items && Array.isArray(value)) {
+      this.validateArrayItems(name, value, schema.items, errors);
     }
 
     // Run custom validators
     for (const validator of this.customValidators) {
-      const error = validator(parsedValue, property);
+      const error = validator(value, property);
       if (error) {
         errors.push({
           ...error,
