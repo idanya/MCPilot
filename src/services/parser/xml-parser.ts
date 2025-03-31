@@ -193,9 +193,9 @@ export class XmlParser {
     if (trimmed.toLowerCase() === "false") return false;
 
     // Handle numeric values
-    if (!isNaN(Number(trimmed)) && trimmed !== "") {
-      return Number(trimmed);
-    }
+    // if (!isNaN(Number(trimmed)) && trimmed !== "") {
+    //   return Number(trimmed);
+    // }
 
     // Handle JSON objects/arrays
     try {
