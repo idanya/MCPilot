@@ -85,11 +85,11 @@ describe("XmlParser", () => {
       expect(result[0].arguments.complex_array).toHaveLength(2);
       expect(result[0].arguments.complex_array[0]).toEqual({
         name: "Item 1",
-        value: 100,
+        value: "100",
       });
       expect(result[0].arguments.complex_array[1]).toEqual({
         name: "Item 2",
-        value: 200,
+        value: "200",
       });
     });
 
