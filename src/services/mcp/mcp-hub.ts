@@ -580,6 +580,13 @@ export class McpHub {
       throw new Error(`Server "${serverName}" is disabled and cannot be used`);
     }
 
+    // Convert tool arguments to proper types based on input schema
+    const processedArguments = this.processToolArguments(
+      serverName,
+      toolName,
+      toolArguments,
+    );
+
     if (toolName !== "tools/list" && !this.autoApproveTools) {
       // Add user confirmation
       const readline = createInterface({
@@ -613,7 +620,7 @@ export class McpHub {
         method: "tools/call",
         params: {
           name: toolName,
-          arguments: toolArguments,
+          arguments: processedArguments,
         },
       },
       CallToolResultSchema,
@@ -661,6 +668,86 @@ export class McpHub {
     };
   }
 
+  /**
+   * Process tool arguments to convert string values to their proper types based on the tool's input schema
+   */
+  private processToolArguments(
+    serverName: string,
+    toolName: string,
+    toolArguments?: Record<string, unknown>,
+  ): Record<string, unknown> {
+    if (!toolArguments) return {};
+
+    // Find the tool definition with schema
+    const server = this.findConnection(serverName);
+    if (!server) return toolArguments;
+
+    const tool = server.server.tools?.find((t) => t.name === toolName);
+    if (!tool || !tool.inputSchema || !tool.inputSchema.properties)
+      return toolArguments;
+
+    const result = { ...toolArguments };
+
+    // Process each argument based on the schema
+    for (const [key, value] of Object.entries(toolArguments)) {
+      const propertySchema = tool.inputSchema.properties[key];
+      if (!propertySchema || value === null || value === undefined) continue;
+
+      // Handle type conversions
+      if (
+        propertySchema.type === "number" ||
+        propertySchema.type === "integer"
+      ) {
+        // Convert string to number if needed
+        if (typeof value === "string") {
+          const numValue =
+            propertySchema.type === "integer"
+              ? parseInt(value, 10)
+              : parseFloat(value);
+
+          if (!isNaN(numValue)) {
+            result[key] = numValue;
+          }
+        }
+      } else if (
+        propertySchema.type === "boolean" &&
+        typeof value === "string"
+      ) {
+        // Convert string to boolean
+        if (value.toLowerCase() === "true") {
+          result[key] = true;
+        } else if (value.toLowerCase() === "false") {
+          result[key] = false;
+        }
+      } else if (propertySchema.type === "array" && typeof value === "string") {
+        // Try to parse JSON string arrays
+        try {
+          const parsed = JSON.parse(value);
+          if (Array.isArray(parsed)) {
+            result[key] = parsed;
+          }
+        } catch (e) {
+          // If can't parse as JSON, split by comma as fallback
+          result[key] = value.split(",").map((v) => v.trim());
+        }
+      } else if (
+        propertySchema.type === "object" &&
+        typeof value === "string"
+      ) {
+        // Try to parse JSON string objects
+        try {
+          const parsed = JSON.parse(value);
+          if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+            result[key] = parsed;
+          }
+        } catch (e) {
+          // Keep as string if can't parse
+        }
+      }
+    }
+
+    return result;
+  }
   /**
    * Restart a server connection
    */
