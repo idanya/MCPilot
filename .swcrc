@@ -24,7 +24,9 @@
   },
   "module": {
     "type": "nodenext",
-    "resolveFully": true
-  }
+    "resolveFully": true,
+    "noInterop": false
+  },
+  "minify": false
 }
 

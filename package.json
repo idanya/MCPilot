@@ -3,10 +3,18 @@
   "version": "0.1.6",
   "description": "General-purpose system that executes tasks using MCP tooling through prompt-based interactions",
   "type": "module",
-  "main": "dist/cli/index.js",
+  "main": "dist/index.js",    
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
   "scripts": {
+    "build:types": "tsc --emitDeclarationOnly --declaration --noEmit false",
     "build:ci": "tsc && npm run build",
-    "build": "npm run clean && swc --strip-leading-paths src/ --out-dir dist && npm run postbuild",
+    "build": "npm run clean && npm run build:types && swc --strip-leading-paths src/ --out-dir dist && npm run postbuild",
     "postbuild": "chmod +x ./dist/cli/index.js",
     "start": "node dist/index.js",
     "dev": "npx tsx src/cli/index.ts",
@@ -14,7 +22,7 @@
     "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
-  },
+  }, 
   "bin": {
     "mcpilot": "./dist/cli/index.js"
   },
