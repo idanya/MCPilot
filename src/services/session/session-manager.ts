@@ -19,17 +19,17 @@ import {
   findConfigFileSync,
   findNearestMcpilotDirSync,
 } from "../config/config-utils.ts";
+import { McpServerConfig } from "../config/mcp-schema.ts";
 import { RoleConfigLoader } from "../config/role-config-loader.ts";
 import { validateRolesConfig } from "../config/role-schema.ts";
 import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
-import { McpServerConfig } from "../config/mcp-schema.ts";
 import { ToolRequestParser } from "../parser/tool-request-parser.ts";
 import { ParsedToolRequest } from "../parser/xml-parser.ts";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
 
 export class SessionManager {
-  private currentSession: Session | null = null;
+  #sessions: Record<string, Session> = {};
   private toolRequestParser!: ToolRequestParser;
   private promptEnhancer!: SystemPromptEnhancer;
   private mcpHub!: McpHub;
@@ -56,43 +56,30 @@ export class SessionManager {
   }
 
   /**
-   * Get the message history for the current session
-   */
-  public getMessageHistory(): Message[] {
-    this.ensureActiveSession();
-    return this.currentSession!.messages;
-  }
-
-  /**
    * Create a new session
    */
   public async createSession(role?: string): Promise<Session> {
-    if (this.currentSession) {
-      throw new MCPilotError(
-        "Session already exists",
-        "SESSION_EXISTS",
-        ErrorSeverity.HIGH,
-      );
-    }
-
-    this.currentSession = {
+    const newSession = {
       id: uuidv4(),
       systemPrompt: "",
       messages: [],
       metadata: this.createDefaultMetadata(),
     };
 
-    await this.loadRoleConfiguration();
+    this.#sessions[newSession.id] = newSession;
+
+    await this.init();
+
     const roleConfig = await this.getRoleConfig(role);
     if (roleConfig) {
-      await this.setupRoleContext(roleConfig);
+      await this.setupRoleContext(newSession.id, roleConfig);
     }
 
     // Save session and log paths
     const mcpilotDir = this.findMcpilotDir();
     const logsDir = path.join(mcpilotDir, "logs");
     const sessionsDir = path.join(mcpilotDir, "sessions");
-    const sessionPath = path.join(sessionsDir, this.currentSession.id);
+    const sessionPath = path.join(sessionsDir, newSession.id);
     const configPath = findConfigFileSync(
       this.workingDirectory,
       ".mcpilot.config.json",
@@ -110,22 +97,14 @@ export class SessionManager {
     logger.info(`Sessions directory: ${sessionsDir}`);
     logger.info(`Session path: ${sessionPath}`);
 
-    this.saveSessionToFile();
-    return this.currentSession;
+    this.saveSessionToFile(newSession.id);
+    return newSession;
   }
 
   /**
    * Resume a session from a log file
    */
-  public async resumeSession(pathOrId: string): Promise<Session> {
-    if (!pathOrId) {
-      throw new MCPilotError(
-        "Session path or ID is required",
-        "INVALID_PATH_OR_ID",
-        ErrorSeverity.HIGH,
-      );
-    }
-
+  public async resumeSession(sessionId: string): Promise<Session> {
     try {
       await this.init();
 
@@ -133,24 +112,24 @@ export class SessionManager {
 
       // First try to load as a session ID
       const mcpilotDir = this.findMcpilotDir();
-      const sessionPath = path.join(mcpilotDir, "sessions", pathOrId);
+      const sessionPath = path.join(mcpilotDir, "sessions", sessionId);
       if (fs.existsSync(sessionPath)) {
         const rawData = fs.readFileSync(sessionPath, "utf8");
         sessionData = JSON.parse(rawData);
       } else {
         // Fall back to loading from log file
-        sessionData = this.loadSessionFromLog(pathOrId);
+        sessionData = this.loadSessionFromLog(sessionId);
       }
 
-      this.currentSession = sessionData;
+      this.#sessions[sessionData.id] = sessionData;
 
-      return this.currentSession;
+      return sessionData;
     } catch (error) {
       throw new MCPilotError(
         "Failed to resume session",
         "RESUME_FAILED",
         ErrorSeverity.HIGH,
-        { pathOrId, error },
+        { sessionId, error },
       );
     }
   }
@@ -158,13 +137,14 @@ export class SessionManager {
   /**
    * Execute a user message and return a response
    */
-  public async executeMessage(message: string | Message): Promise<Response> {
-    this.ensureActiveSession();
-
+  public async executeMessage(
+    sessionId: string,
+    message: string | Message,
+  ): Promise<Response> {
     try {
       const newMessage = this.createMessageObject(message);
-      this.addMessageToSession(newMessage);
-      const response = await this.processMessageWithTools();
+      this.addMessageToSession(sessionId, newMessage);
+      const response = await this.processMessageWithTools(sessionId);
 
       return response;
     } catch (error) {
@@ -175,25 +155,23 @@ export class SessionManager {
   /**
    * Get the current session
    */
-  public getSession(): Session {
-    this.ensureActiveSession();
-    return { ...this.currentSession! };
+  public getSession(sessionId: string): Session {
+    return { ...this.#sessions[sessionId] };
   }
 
   /**
    * Update the session with new data
    */
-  public updateSession(sessionData: Partial<Session>): void {
-    this.ensureActiveSession();
-    this.currentSession = {
-      ...this.currentSession!,
+  public updateSession(sessionId: string, sessionData: Partial<Session>): void {
+    this.#sessions[sessionId] = {
+      ...this.#sessions[sessionId],
       ...sessionData,
       metadata: {
-        ...this.currentSession!.metadata,
+        ...this.#sessions[sessionId].metadata,
         ...sessionData.metadata,
       },
     };
-    this.saveSessionToFile();
+    this.saveSessionToFile(sessionId);
   }
 
   /**
@@ -207,13 +185,13 @@ export class SessionManager {
   /**
    * Save current session to a file
    */
-  private saveSessionToFile(): void {
-    if (!this.currentSession) return;
+  private saveSessionToFile(sessionId: string): void {
+    if (!this.#sessions[sessionId]) return;
 
     // Find nearest .mcpilot directory or default to local sessions
     const mcpilotDir = this.findMcpilotDir();
     const sessionsDir = path.join(mcpilotDir, "sessions");
-    const sessionPath = path.join(sessionsDir, this.currentSession.id);
+    const sessionPath = path.join(sessionsDir, sessionId);
 
     try {
       // Create sessions directory if it doesn't exist
@@ -224,7 +202,7 @@ export class SessionManager {
       // Write session data to file
       fs.writeFileSync(
         sessionPath,
-        JSON.stringify(this.currentSession, null, 2),
+        JSON.stringify(this.#sessions[sessionId], null, 2),
         "utf8",
       );
     } catch (error) {
@@ -249,17 +227,16 @@ export class SessionManager {
 
     // Filter servers based on role's availableServers if defined
     let filteredServers = allServers;
-    if (role?.availableServers && role?.availableServers.length > 0) {
-      filteredServers = Object.entries(allServers)
-        .filter(([serverName]) => role?.availableServers?.includes(serverName))
-        .reduce(
-          (acc, [serverName, serverConfig]) => {
-            acc[serverName] = serverConfig;
-            return acc;
-          },
-          {} as Record<string, McpServerConfig>,
-        );
-    }
+
+    filteredServers = Object.entries(allServers)
+      .filter(([serverName]) => role?.availableServers.includes(serverName))
+      .reduce(
+        (acc, [serverName, serverConfig]) => {
+          acc[serverName] = serverConfig;
+          return acc;
+        },
+        {} as Record<string, McpServerConfig>,
+      );
 
     this.mcpHub = new McpHub({
       servers: filteredServers,
@@ -354,7 +331,10 @@ export class SessionManager {
   /**
    * Set up role-specific context
    */
-  private async setupRoleContext(roleConfig: RoleConfig): Promise<void> {
+  private async setupRoleContext(
+    sessionId: string,
+    roleConfig: RoleConfig,
+  ): Promise<void> {
     // Reinitialize MCP hub with role-specific servers
     await this.createMcpHub(roleConfig);
     this.initializeHelpers();
@@ -368,26 +348,13 @@ export class SessionManager {
       });
     }
 
-    this.updateSession({
+    this.updateSession(sessionId, {
       systemPrompt: await this.promptEnhancer.buildSystemPrompt(),
       metadata: {
-        ...this.currentSession!.metadata,
+        ...this.#sessions[sessionId].metadata,
         role: roleConfig,
       },
     });
-  }
-
-  /**
-   * Ensure there is an active session
-   */
-  private ensureActiveSession(): void {
-    if (!this.currentSession) {
-      throw new MCPilotError(
-        "No active session",
-        "NO_SESSION",
-        ErrorSeverity.HIGH,
-      );
-    }
   }
 
   /**
@@ -409,20 +376,21 @@ export class SessionManager {
   /**
    * Add a message to the session
    */
-  private addMessageToSession(message: Message): void {
-    this.updateSession({
-      messages: [...this.currentSession!.messages, message],
+  private addMessageToSession(sessionId: string, message: Message): void {
+    this.updateSession(sessionId, {
+      messages: [...this.#sessions[sessionId].messages, message],
     });
   }
 
   /**
    * Load session from a log file
    */
-  private loadSessionFromLog(logPath: string): Session {
+  private loadSessionFromLog(sessionId: string): Session {
     try {
-      this.validateLogFile(logPath);
-      const logContent = fs.readFileSync(logPath, "utf8");
-      const logs = this.parseLogContent(logContent);
+      const mcpilotDir = this.findMcpilotDir();
+      const sessionsDir = path.join(mcpilotDir, "sessions");
+      const sessionFilePath = path.join(sessionsDir, sessionId);
+      this.validateLogFile(sessionFilePath);
 
       // Initialize session data with default values
       const sessionData: Session = {
@@ -432,17 +400,14 @@ export class SessionManager {
         metadata: this.createDefaultMetadata(),
       };
 
+      const sessionContent = fs.readFileSync(sessionFilePath, "utf8");
+
       // Process log entries in order
-      for (const log of logs) {
-        this.processLogEntry(log, sessionData, logPath);
-      }
+      this.processSessionData(sessionContent, sessionData);
 
       if (!sessionData.id) {
         throw new Error("Invalid log file: no session ID found");
       }
-
-      // Ensure we have the session filename in metadata
-      this.ensureSessionFilename(sessionData, logPath);
 
       return sessionData;
     } catch (error: unknown) {
@@ -453,7 +418,7 @@ export class SessionManager {
         `Failed to parse session log: ${errorMessage}`,
         "LOG_PARSE_FAILED",
         ErrorSeverity.HIGH,
-        { logPath, error },
+        { error },
       );
     }
   }
@@ -494,11 +459,7 @@ export class SessionManager {
   /**
    * Process a single log entry
    */
-  private processLogEntry(
-    log: any,
-    sessionData: Session,
-    logPath: string,
-  ): void {
+  private processSessionData(log: any, sessionData: Session): void {
     if (!log.metadata) return;
 
     const { sessionId, messages, systemPrompt } = log.metadata;
@@ -524,7 +485,6 @@ export class SessionManager {
         custom: {
           ...sessionData.metadata.custom,
           ...log.metadata.custom,
-          sessionFilename: path.basename(logPath),
         },
       };
     }
@@ -543,7 +503,7 @@ export class SessionManager {
   /**
    * Process a message with potential tool requests
    */
-  private async processMessageWithTools(): Promise<Response> {
+  private async processMessageWithTools(sessionId: string): Promise<Response> {
     if (!this.provider) {
       return this.createErrorResponse(
         "NO_PROVIDER",
@@ -553,7 +513,9 @@ export class SessionManager {
 
     try {
       logger.debug("Processing message with tools....");
-      const response = await this.provider.processMessage(this.currentSession!);
+      const response = await this.provider.processMessage(
+        this.#sessions[sessionId],
+      );
       logger.debug(`Response: ${response.id}`);
 
       // Check for tool requests in response
@@ -565,10 +527,13 @@ export class SessionManager {
         );
       }
 
-      this.addAssistantResponseToSession(response.content.text);
+      this.addAssistantResponseToSession(sessionId, response.content.text);
 
-      const toolRequests = await this.parseToolRequests(response.content.text);
-      await this.handleToolRequests(toolRequests);
+      const toolRequests = await this.parseToolRequests(
+        sessionId,
+        response.content.text,
+      );
+      await this.handleToolRequests(sessionId, toolRequests);
 
       return response;
     } catch (error) {
@@ -583,8 +548,11 @@ export class SessionManager {
   /**
    * Add the assistant's response to the session
    */
-  private addAssistantResponseToSession(responseText: string): void {
-    this.addMessageToSession({
+  private addAssistantResponseToSession(
+    sessionId: string,
+    responseText: string,
+  ): void {
+    this.addMessageToSession(sessionId, {
       id: this.generateMessageId(),
       type: MessageType.ASSISTANT,
       content: responseText,
@@ -597,16 +565,15 @@ export class SessionManager {
    * Parse tool requests from a response
    */
   private async parseToolRequests(
+    sessionId: string,
     responseText: string,
   ): Promise<ParsedToolRequest[]> {
     try {
       return await this.toolRequestParser.parseRequest(responseText);
     } catch (error) {
-      logger.error(
-        "Error processing message with tools:",
-        JSON.stringify(error),
-      );
+      logger.error(`Error processing message with tools`, error);
       await this.executeMessage(
+        sessionId,
         `Error processing message with tools: ${JSON.stringify(error)}`,
       );
       return [];
@@ -617,6 +584,7 @@ export class SessionManager {
    * Handle tool requests
    */
   private async handleToolRequests(
+    sessionId: string,
     toolRequests: ParsedToolRequest[],
   ): Promise<boolean> {
     // If there's a tool request, process only the first one
@@ -632,7 +600,7 @@ export class SessionManager {
         logger.debug("Tool call result:", result);
 
         const toolMessage = this.createToolCallMessage(request, result);
-        await this.executeMessage(toolMessage.content);
+        await this.executeMessage(sessionId, toolMessage.content);
         return true;
       } catch (error) {
         logger.error("Tool call error:", error);

@@ -14,7 +14,7 @@ export type LogLevelStrings = keyof typeof LogLevel;
 export interface RoleConfig {
   definition: string;
   instructions: string;
-  availableServers?: string[];
+  availableServers: string[];
 }
 
 export interface RolesConfig {

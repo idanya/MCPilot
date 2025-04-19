@@ -52,7 +52,7 @@ export class ToolRequestParser {
       }
 
       return requests;
-    } catch (error: unknown) {
+    } catch (error) {
       throw new ToolRequestError("Failed to parse request", {
         code: "PARSE_ERROR",
         cause: error instanceof Error ? error : new Error(String(error)),

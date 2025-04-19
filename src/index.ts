@@ -42,3 +42,5 @@ export type {
   OpenAIConfig,
   ProviderConfigMap,
 } from "./providers/provider-config.ts";
+
+export { ConfigLoader } from "./services/config/config-loader.ts";

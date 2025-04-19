@@ -51,10 +51,10 @@ export async function handleStart(
     options.roleFile,
   );
 
-  await sessionManager.createSession(options.role);
+  const session = await sessionManager.createSession(options.role);
   logger.info("Session started successfully");
 
-  await sessionManager.executeMessage(instruction);
+  await sessionManager.executeMessage(session.id, instruction);
   process.exit(0);
 }
 
@@ -80,9 +80,9 @@ export async function handleResume(
     options.roleFile,
   );
 
-  await sessionManager.resumeSession(logPath);
+  const session = await sessionManager.resumeSession(logPath);
   logger.info("Session resumed successfully");
-  await sessionManager.executeMessage(instruction);
+  await sessionManager.executeMessage(session.id, instruction);
   process.exit(0);
 }
 
