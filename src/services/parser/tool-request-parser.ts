@@ -41,14 +41,14 @@ export class ToolRequestParser {
   /**
    * Parse and validate a tool request
    */
-  public async parseRequest(input: string): Promise<ParsedToolRequest[]> {
+  public parseRequest(input: string): ParsedToolRequest[] {
     try {
       // Parse XML requests
       const requests = this.xmlParser.parseToolRequests(input);
 
       // Validate each request
       for (const request of requests) {
-        await this.validateRequest(request);
+        this.validateRequest(request);
       }
 
       return requests;
@@ -63,7 +63,7 @@ export class ToolRequestParser {
   /**
    * Validate a parsed tool request
    */
-  private async validateRequest(request: ParsedToolRequest): Promise<void> {
+  private validateRequest(request: ParsedToolRequest): void {
     // Get tool schema from catalog
     const toolCatalog = this.mcpHub.getToolCatalog();
     const toolInfo = toolCatalog.getToolDocumentation(request.toolName);

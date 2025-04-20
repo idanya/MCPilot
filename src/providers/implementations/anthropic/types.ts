@@ -29,6 +29,8 @@ export interface AnthropicCacheMessage {
 export interface AnthropicResponse {
   id: string;
   content: Array<ContentBlock>;
+  thinkingScope?: string;
+  userInteraction?: string;
   model: string;
   usage: {
     input_tokens: number;

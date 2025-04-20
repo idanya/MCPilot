@@ -152,6 +152,7 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
       const response: AnthropicResponse = {
         content: [textBlock],
         id: "",
+        thinkingScope: undefined,
         model: "",
         usage: {
           input_tokens: 0,
@@ -161,17 +162,25 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
 
       const stream = this.sendStreamedRequest(session);
       const allChunks = await arrayFromAsyncGenerator(stream);
-      let thinkingScope: string | undefined = undefined;
 
       for (const chunk of allChunks) {
         this.updateResponseFromChunk(response, textBlock, chunk);
-        if (!thinkingScope) {
-          thinkingScope = this.extractThinkingContent(textBlock.text);
+        if (!response.thinkingScope) {
+          response.thinkingScope = this.extractThinkingContent(textBlock.text);
+        }
+
+        if (!response.userInteraction) {
+          response.userInteraction = this.extractUserInteractionContext(
+            textBlock.text,
+          );
         }
       }
 
-      if (thinkingScope) {
-        logger.info(`Thought:\n${thinkingScope}`);
+      if (response.thinkingScope) {
+        logger.info(`Thought:\n${response.thinkingScope}`);
+      }
+      if (response.userInteraction) {
+        logger.info(`User question:\n${response.userInteraction}`);
       }
 
       return response;
@@ -190,6 +199,13 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
     return thinkingMatch ? thinkingMatch[1].trim() : undefined;
   }
 
+  private extractUserInteractionContext(text: string): string | undefined {
+    const userInteraction = text.match(
+      /<user_interaction>([\s\S]*?)<\/user_interaction>/,
+    );
+    return userInteraction ? userInteraction[1].trim() : undefined;
+  }
+
   protected async parseResponse(
     response: AnthropicResponse,
   ): Promise<Response> {
@@ -200,6 +216,8 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
       type: ResponseType.TEXT,
       content: {
         text: stringResponse,
+        thinkingScope: response.thinkingScope,
+        userInteraction: response.userInteraction,
       },
       metadata: {
         model: response.model,

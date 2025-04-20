@@ -10,6 +10,7 @@ export type {
   Message,
   MessageType,
   Response,
+  ResponseWithSessionMetadata,
   ResponseType,
 } from "./services/session/index.ts";
 

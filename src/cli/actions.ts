@@ -42,14 +42,14 @@ export async function handleStart(
   const provider = await createProvider(providerFactory, config, options);
 
   // Initialize session manager with config and roles
-  const sessionManager = new SessionManager(
+  const sessionManager = new SessionManager({
     config,
     provider,
-    options.rolesConfig,
-    options.workingDirectory,
-    options.autoApproveTools,
-    options.roleFile,
-  );
+    rolesConfigPath: options.rolesConfig,
+    workingDirectory: options.workingDirectory,
+    autoApproveTools: options.autoApproveTools,
+    roleFilePath: options.roleFile,
+  });
 
   const session = await sessionManager.createSession(options.role);
   logger.info("Session started successfully");
@@ -71,14 +71,14 @@ export async function handleResume(
   const config = await createConfig(options);
   const provider = await createProvider(providerFactory, config, options);
 
-  const sessionManager = new SessionManager(
+  const sessionManager = new SessionManager({
     config,
     provider,
-    options.rolesConfig,
-    options.workingDirectory,
-    options.autoApproveTools,
-    options.roleFile,
-  );
+    rolesConfigPath: options.rolesConfig,
+    workingDirectory: options.workingDirectory,
+    autoApproveTools: options.autoApproveTools,
+    roleFilePath: options.roleFile,
+  });
 
   const session = await sessionManager.resumeSession(logPath);
   logger.info("Session resumed successfully");

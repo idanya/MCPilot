@@ -2,12 +2,18 @@
  * Defines the structure of responses from LLM providers and tools
  */
 
+import { SessionMetadata } from "./session";
+
 export interface Response {
   id: string;
   type: ResponseType;
   content: ResponseContent;
   metadata: ResponseMetadata;
   timestamp: Date;
+}
+
+export interface ResponseWithSessionMetadata extends Response {
+  sessionMetadata: SessionMetadata;
 }
 
 export enum ResponseType {
@@ -18,6 +24,8 @@ export enum ResponseType {
 
 export interface ResponseContent {
   text?: string;
+  thinkingScope?: string;
+  userInteraction?: string;
   toolResults?: ToolResult[];
   error?: ResponseError;
 }

@@ -12,6 +12,17 @@ export interface Session {
   systemPrompt: string;
   messages: Message[];
   metadata: SessionMetadata;
+  
+  // New properties for session hierarchy
+  parentId?: string;
+  childSessionIds: string[];
+  status: SessionStatus;
+}
+
+export enum SessionStatus {
+  ACTIVE = "active",
+  COMPLETED = "completed",
+  FAILED = "failed"
 }
 
 export interface SessionMetadata {
@@ -22,7 +33,18 @@ export interface SessionMetadata {
     shell: string;
   };
   role?: RoleConfig;
+  roleName?: string;
   custom?: Record<string, any>;
+  
+  // New properties for session hierarchy
+  sessionHierarchy?: {
+    parentId?: string;
+    childSessions?: {
+      id: string;
+      status: SessionStatus;
+      summary?: string;
+    }[];
+  };
 }
 
 export enum LogLevel {

@@ -10,8 +10,13 @@ import {
   MessageType,
   ToolCallStatus,
 } from "../../interfaces/base/message.ts";
-import { Response, ResponseType } from "../../interfaces/base/response.ts";
-import { Session } from "../../interfaces/base/session.ts";
+import {
+  Response,
+  ResponseContent,
+  ResponseType,
+  ResponseWithSessionMetadata,
+} from "../../interfaces/base/response.ts";
+import { Session, SessionStatus } from "../../interfaces/base/session.ts";
 import { MCPilotConfig, RoleConfig } from "../../interfaces/config/types.ts";
 import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 import { ILLMProvider } from "../../interfaces/llm/provider.ts";
@@ -25,24 +30,57 @@ import { validateRolesConfig } from "../config/role-schema.ts";
 import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
 import { ToolRequestParser } from "../parser/tool-request-parser.ts";
-import { ParsedToolRequest } from "../parser/xml-parser.ts";
+import { ParsedToolRequest, XmlParser } from "../parser/xml-parser.ts";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
+import { ParsedInternalToolRequest } from "../../interfaces/tools/internal-tool.ts";
+import { InternalToolsManager } from "../tools/internal-tools-manager.ts";
+
+/**
+ * Interface for SessionManager constructor parameters
+ */
+export interface SessionManagerOptions {
+  /** MCPilot configuration */
+  config: MCPilotConfig;
+  /** LLM provider instance */
+  provider: ILLMProvider;
+  /** Path to roles configuration file */
+  rolesConfigPath?: string;
+  /** Working directory for the session */
+  workingDirectory?: string;
+  /** Whether to auto-approve tool calls */
+  autoApproveTools?: boolean;
+  /** Path to a specific role file */
+  roleFilePath?: string;
+}
 
 export class SessionManager {
   #sessions: Record<string, Session> = {};
   private toolRequestParser!: ToolRequestParser;
+  private xmlParser!: XmlParser;
   private promptEnhancer!: SystemPromptEnhancer;
   private mcpHub!: McpHub;
   private roleLoader!: RoleConfigLoader;
+  private internalToolsManager!: InternalToolsManager;
+  private responseListener?: (
+    sessionId: string,
+    responseContent: ResponseContent,
+  ) => Promise<void>;
 
-  constructor(
-    private readonly config: MCPilotConfig,
-    private readonly provider: ILLMProvider,
-    private readonly rolesConfigPath?: string,
-    private readonly workingDirectory: string = process.cwd(),
-    private readonly autoApproveTools: boolean = false,
-    private readonly roleFilePath?: string,
-  ) {}
+  constructor(options: SessionManagerOptions) {
+    this.config = options.config;
+    this.provider = options.provider;
+    this.rolesConfigPath = options.rolesConfigPath;
+    this.workingDirectory = options.workingDirectory || process.cwd();
+    this.autoApproveTools = options.autoApproveTools || false;
+    this.roleFilePath = options.roleFilePath;
+  }
+
+  private readonly config: MCPilotConfig;
+  private readonly provider: ILLMProvider;
+  private readonly rolesConfigPath?: string;
+  private readonly workingDirectory: string;
+  private readonly autoApproveTools: boolean;
+  private readonly roleFilePath?: string;
 
   // PUBLIC METHODS
 
@@ -64,6 +102,9 @@ export class SessionManager {
       systemPrompt: "",
       messages: [],
       metadata: this.createDefaultMetadata(),
+      // New properties for session hierarchy
+      childSessionIds: [],
+      status: SessionStatus.ACTIVE,
     };
 
     this.#sessions[newSession.id] = newSession;
@@ -72,7 +113,7 @@ export class SessionManager {
 
     const roleConfig = await this.getRoleConfig(role);
     if (roleConfig) {
-      await this.setupRoleContext(newSession.id, roleConfig);
+      await this.setupRoleContext(newSession.id, roleConfig, role);
     }
 
     // Save session and log paths
@@ -99,6 +140,77 @@ export class SessionManager {
 
     this.saveSessionToFile(newSession.id);
     return newSession;
+  }
+
+  /**
+   * Create a child session linked to a parent
+   */
+  public async createChildSession(
+    parentId: string,
+    role: string,
+    initialPrompt: string,
+  ): Promise<Session> {
+    // Create a new session
+    const childSession = await this.createSession(role);
+
+    // Link child to parent
+    this.#sessions[childSession.id].parentId = parentId;
+
+    // Add child ID to parent's child list
+    this.updateSession(parentId, {
+      childSessionIds: [
+        ...(this.#sessions[parentId].childSessionIds || []),
+        childSession.id,
+      ],
+    });
+
+    // Update session metadata to reflect hierarchy
+    this.updateSessionHierarchy(parentId, childSession.id);
+
+    // Add initial prompt as first user message if provided
+    if (initialPrompt) {
+      await this.executeMessage(childSession.id, initialPrompt);
+    }
+
+    return childSession;
+  }
+
+  /**
+   * Complete a child session and send results to parent
+   */
+  public async completeChildSession(
+    sessionId: string,
+    summary: string,
+  ): Promise<void> {
+    const session = this.#sessions[sessionId];
+
+    if (!session.parentId) {
+      throw new Error("Cannot complete session - not a child session");
+    }
+
+    // Update session status
+    this.updateSession(sessionId, {
+      status: SessionStatus.COMPLETED,
+    });
+
+    // Update parent session with child completion
+    this.updateChildSessionStatus(
+      session.parentId,
+      sessionId,
+      SessionStatus.COMPLETED,
+      summary,
+    );
+
+    // Create a message in the parent session with the summary
+    await this.executeMessage(session.parentId, {
+      id: this.generateMessageId(),
+      type: MessageType.CHILD_SESSION_RESULT,
+      content: summary,
+      timestamp: new Date(),
+      metadata: {
+        childSessionId: sessionId,
+      },
+    });
   }
 
   /**
@@ -140,13 +252,16 @@ export class SessionManager {
   public async executeMessage(
     sessionId: string,
     message: string | Message,
-  ): Promise<Response> {
+  ): Promise<ResponseWithSessionMetadata> {
     try {
       const newMessage = this.createMessageObject(message);
       this.addMessageToSession(sessionId, newMessage);
       const response = await this.processMessageWithTools(sessionId);
 
-      return response;
+      return {
+        ...response,
+        sessionMetadata: this.getSession(sessionId).metadata,
+      };
     } catch (error) {
       throw this.handleError(error);
     }
@@ -185,7 +300,7 @@ export class SessionManager {
   /**
    * Save current session to a file
    */
-  private saveSessionToFile(sessionId: string): void {
+  public saveSessionToFile(sessionId: string): void {
     if (!this.#sessions[sessionId]) return;
 
     // Find nearest .mcpilot directory or default to local sessions
@@ -249,10 +364,14 @@ export class SessionManager {
    * Initialize helper components
    */
   private initializeHelpers(): void {
+    this.xmlParser = new XmlParser();
+    this.internalToolsManager = new InternalToolsManager(this);
     this.toolRequestParser = new ToolRequestParser(this.mcpHub);
     this.promptEnhancer = new SystemPromptEnhancer(
       this.mcpHub.getToolCatalog(),
       this.workingDirectory,
+      this.internalToolsManager,
+      this.roleLoader,
     );
   }
 
@@ -278,8 +397,15 @@ export class SessionManager {
         os: process.platform,
         shell: process.env.SHELL || "",
       },
+      sessionHierarchy: {
+        childSessions: [],
+      },
     };
   }
+
+  /**
+   * Get role configuration
+   */
   private async getRoleConfig(role?: string): Promise<RoleConfig | undefined> {
     // If roleFilePath is specified, load the role from that file directly
     if (this.roleFilePath) {
@@ -328,16 +454,21 @@ export class SessionManager {
     }
     return roleConfig;
   }
+
   /**
    * Set up role-specific context
    */
   private async setupRoleContext(
     sessionId: string,
     roleConfig: RoleConfig,
+    roleName?: string,
   ): Promise<void> {
     // Reinitialize MCP hub with role-specific servers
     await this.createMcpHub(roleConfig);
     this.initializeHelpers();
+
+    // Log role information
+    logger.info(`Setting up role context: ${roleName || "unknown"}`);
 
     // Build enhanced system prompt
     if (roleConfig) {
@@ -348,11 +479,15 @@ export class SessionManager {
       });
     }
 
+    // Determine if this is a child session
+    const isChildSession = !!this.#sessions[sessionId].parentId;
+
     this.updateSession(sessionId, {
-      systemPrompt: await this.promptEnhancer.buildSystemPrompt(),
+      systemPrompt: await this.promptEnhancer.buildSystemPrompt(isChildSession),
       metadata: {
         ...this.#sessions[sessionId].metadata,
         role: roleConfig,
+        roleName: roleName,
       },
     });
   }
@@ -383,6 +518,66 @@ export class SessionManager {
   }
 
   /**
+   * Update session hierarchy metadata
+   */
+  private updateSessionHierarchy(parentId: string, childId: string): void {
+    // Update parent session metadata
+    const parentSession = this.#sessions[parentId];
+    const childSession = this.#sessions[childId];
+
+    if (!parentSession.metadata.sessionHierarchy) {
+      parentSession.metadata.sessionHierarchy = {
+        childSessions: [],
+      };
+    }
+
+    parentSession.metadata.sessionHierarchy.childSessions!.push({
+      id: childId,
+      status: SessionStatus.ACTIVE,
+    });
+
+    // Update child session metadata
+    if (!childSession.metadata.sessionHierarchy) {
+      childSession.metadata.sessionHierarchy = {};
+    }
+
+    childSession.metadata.sessionHierarchy.parentId = parentId;
+
+    // Save both sessions
+    this.saveSessionToFile(parentId);
+    this.saveSessionToFile(childId);
+  }
+
+  /**
+   * Update child session status in parent metadata
+   */
+  private updateChildSessionStatus(
+    parentId: string,
+    childId: string,
+    status: SessionStatus,
+    summary?: string,
+  ): void {
+    const parentSession = this.#sessions[parentId];
+
+    if (!parentSession?.metadata?.sessionHierarchy?.childSessions) {
+      return;
+    }
+
+    const childSessions = parentSession.metadata.sessionHierarchy.childSessions;
+    const childIndex = childSessions.findIndex((c) => c.id === childId);
+
+    if (childIndex >= 0) {
+      childSessions[childIndex] = {
+        ...childSessions[childIndex],
+        status,
+        summary,
+      };
+    }
+
+    this.saveSessionToFile(parentId);
+  }
+
+  /**
    * Load session from a log file
    */
   private loadSessionFromLog(sessionId: string): Session {
@@ -398,6 +593,8 @@ export class SessionManager {
         systemPrompt: "",
         messages: [],
         metadata: this.createDefaultMetadata(),
+        childSessionIds: [],
+        status: SessionStatus.ACTIVE,
       };
 
       const sessionContent = fs.readFileSync(sessionFilePath, "utf8");
@@ -491,31 +688,15 @@ export class SessionManager {
   }
 
   /**
-   * Ensure session filename is in metadata
-   */
-  private ensureSessionFilename(sessionData: Session, logPath: string): void {
-    if (!sessionData.metadata.custom) {
-      sessionData.metadata.custom = {};
-    }
-    sessionData.metadata.custom.sessionFilename = path.basename(logPath);
-  }
-
-  /**
    * Process a message with potential tool requests
    */
   private async processMessageWithTools(sessionId: string): Promise<Response> {
-    if (!this.provider) {
-      return this.createErrorResponse(
-        "NO_PROVIDER",
-        "No LLM provider configured",
-      );
-    }
-
     try {
       logger.debug("Processing message with tools....");
       const response = await this.provider.processMessage(
         this.#sessions[sessionId],
       );
+
       logger.debug(`Response: ${response.id}`);
 
       // Check for tool requests in response
@@ -527,13 +708,28 @@ export class SessionManager {
         );
       }
 
-      this.addAssistantResponseToSession(sessionId, response.content.text);
+      await this.addAssistantResponseToSession(sessionId, response.content);
 
-      const toolRequests = await this.parseToolRequests(
-        sessionId,
+      // Parse response for tool requests
+      const mcpToolRequests = this.toolRequestParser.parseRequest(
         response.content.text,
       );
-      await this.handleToolRequests(sessionId, toolRequests);
+
+      const internalToolRequests = this.xmlParser.parseInternalToolRequests(
+        response.content.text,
+      );
+
+      // Process MCP tool requests first
+      if (mcpToolRequests.length > 0) {
+        await this.handleToolRequests(sessionId, mcpToolRequests);
+        return response;
+      }
+
+      // Then process internal tool requests
+      if (internalToolRequests.length > 0) {
+        await this.handleInternalToolRequests(sessionId, internalToolRequests);
+        return response;
+      }
 
       return response;
     } catch (error) {
@@ -548,36 +744,31 @@ export class SessionManager {
   /**
    * Add the assistant's response to the session
    */
-  private addAssistantResponseToSession(
+  private async addAssistantResponseToSession(
     sessionId: string,
-    responseText: string,
-  ): void {
+    responseContent: ResponseContent,
+  ): Promise<void> {
     this.addMessageToSession(sessionId, {
       id: this.generateMessageId(),
       type: MessageType.ASSISTANT,
-      content: responseText,
+      content: responseContent.text || "",
       timestamp: new Date(),
       metadata: {},
     });
-  }
 
-  /**
-   * Parse tool requests from a response
-   */
-  private async parseToolRequests(
-    sessionId: string,
-    responseText: string,
-  ): Promise<ParsedToolRequest[]> {
-    try {
-      return await this.toolRequestParser.parseRequest(responseText);
-    } catch (error) {
-      logger.error(`Error processing message with tools`, error);
-      await this.executeMessage(
-        sessionId,
-        `Error processing message with tools: ${JSON.stringify(error)}`,
-      );
-      return [];
+    // Call the thinking scope listener if it exists and thinkingScope is provided
+    if (this.responseListener) {
+      await this.responseListener(sessionId, responseContent);
     }
+  }
+  
+  public setResponseContentListener(
+    listener: (
+      sessionId: string,
+      responseContent: ResponseContent,
+    ) => Promise<void>,
+  ): void {
+    this.responseListener = listener;
   }
 
   /**
@@ -600,10 +791,47 @@ export class SessionManager {
         logger.debug("Tool call result:", result);
 
         const toolMessage = this.createToolCallMessage(request, result);
-        await this.executeMessage(sessionId, toolMessage.content);
+        await this.executeMessage(sessionId, toolMessage);
         return true;
       } catch (error) {
         logger.error("Tool call error:", error);
+        throw error;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Handle internal tool requests
+   */
+  private async handleInternalToolRequests(
+    sessionId: string,
+    toolRequests: ParsedInternalToolRequest[],
+  ): Promise<boolean> {
+    // If there's a tool request, process only the first one
+    if (toolRequests.length > 0) {
+      const request = toolRequests[0];
+      try {
+        const result = await this.internalToolsManager.executeTool(
+          sessionId,
+          request,
+        );
+
+        logger.debug("Internal tool call result:", result);
+
+        if (result.content.shouldSendToModel) {
+          const toolMessage = this.createInternalToolCallMessage(
+            request,
+            result,
+          );
+
+          await this.executeMessage(sessionId, toolMessage);
+        }
+
+        return true;
+      } catch (error) {
+        logger.error("Internal tool call error:", error);
         throw error;
       }
     }
@@ -628,6 +856,37 @@ export class SessionManager {
           {
             toolName: request.toolName,
             parameters: request.arguments,
+            timestamp: new Date(),
+            result: {
+              status: result.success
+                ? ToolCallStatus.SUCCESS
+                : ToolCallStatus.FAILURE,
+              output: result.content,
+              duration: 0,
+            },
+          },
+        ],
+      },
+    };
+  }
+
+  /**
+   * Create a message representing an internal tool call
+   */
+  private createInternalToolCallMessage(
+    request: ParsedInternalToolRequest,
+    result: any,
+  ): Message {
+    return {
+      id: this.generateMessageId(),
+      type: MessageType.USER,
+      content: JSON.stringify(result.content),
+      timestamp: new Date(),
+      metadata: {
+        toolCalls: [
+          {
+            toolName: request.toolName,
+            parameters: request.parameters,
             timestamp: new Date(),
             result: {
               status: result.success

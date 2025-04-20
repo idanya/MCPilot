@@ -13,6 +13,10 @@ export interface Message {
 export enum MessageType {
   USER = "user",
   ASSISTANT = "assistant",
+  SYSTEM = "system",
+  TOOL_CALL = "tool_call",
+  TOOL_RESULT = "tool_result",
+  CHILD_SESSION_RESULT = "child_session_result" // New type
 }
 
 export interface MessageMetadata {
@@ -21,6 +25,7 @@ export interface MessageMetadata {
   provider?: string;
   model?: string;
   custom?: Record<string, any>;
+  childSessionId?: string; // New field for child session results
 }
 
 export interface ToolCall {
