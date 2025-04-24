@@ -2,19 +2,21 @@
  * System Prompt Enhancer for MCP integration
  */
 
-import { ToolCatalogBuilder, ToolDocumentation as McpToolDocumentation } from "../mcp/tool-catalog.ts";
+import { ToolDocumentation as InternalToolDocumentation } from "../../interfaces/tools/internal-tool.ts";
+import { RoleConfigLoader } from "../config/role-config-loader.ts";
 import {
+  ToolDocumentation as McpToolDocumentation,
+  ToolCatalogBuilder,
+} from "../mcp/tool-catalog.ts";
+
+import {
+  buildFileSystemEnvironmentSection,
+  buildFileSystemRestrictionsSection,
   buildToolUsageSection,
   buildToolUseGuidelinesSection,
   formatSection,
-  buildFileSystemRestrictionsSection,
-  buildFileSystemEnvironmentSection,
 } from "./prompts.ts";
 import { listDirectoryContents } from "./utils.ts";
-import { InternalToolsManager } from "../tools/internal-tools-manager.ts";
-import { RoleConfigLoader } from "../config/role-config-loader.ts";
-import { ToolDocumentation as InternalToolDocumentation, ToolExample } from "../../interfaces/tools/internal-tool.ts";
-import { ToolProperty } from "../mcp/types.ts";
 
 interface PromptSection {
   title: string;
@@ -26,18 +28,18 @@ export class SystemPromptEnhancer {
   private basePrompt: string = "";
   private sections: PromptSection[] = [];
   private workingDirectory: string;
-  private internalToolsManager?: InternalToolsManager;
+
   private roleConfigLoader?: RoleConfigLoader;
 
   constructor(
-    toolCatalog: ToolCatalogBuilder, 
+    toolCatalog: ToolCatalogBuilder,
     workingDirectory: string,
-    internalToolsManager?: InternalToolsManager,
-    roleConfigLoader?: RoleConfigLoader
+
+    roleConfigLoader?: RoleConfigLoader,
   ) {
     this.toolCatalog = toolCatalog;
     this.workingDirectory = workingDirectory;
-    this.internalToolsManager = internalToolsManager;
+
     this.roleConfigLoader = roleConfigLoader;
   }
 
@@ -58,7 +60,9 @@ export class SystemPromptEnhancer {
   /**
    * Build system prompt with tool documentation
    */
-  public async buildSystemPrompt(isChildSession: boolean = false): Promise<string> {
+  public async buildSystemPrompt(
+    isChildSession: boolean = false,
+  ): Promise<string> {
     const sections: string[] = [this.basePrompt];
 
     // Add filesystem restrictions and environment
@@ -76,24 +80,28 @@ export class SystemPromptEnhancer {
 
     // Add session-specific instructions
     if (isChildSession) {
-      sections.push(formatSection(
-        "Child Session Instructions",
-        "You are operating in a child session created by a parent session. " +
-        "Complete your assigned task thoroughly and when finished, you MUST use the " +
-        "finish_child_session tool to report back to the parent session with a summary " +
-        "of your work. The parent session is waiting for your results.\n\n" +
-        "You can also create your own child sessions using the run_child_session tool " +
-        "if your task requires delegating work to other specialized roles."
-      ));
+      sections.push(
+        formatSection(
+          "Child Session Instructions",
+          "You are operating in a child session created by a parent session. " +
+            "Complete your assigned task thoroughly and when finished, you MUST use the " +
+            "finish_child_session tool to report back to the parent session with a summary " +
+            "of your work. The parent session is waiting for your results.\n\n" +
+            "You can also create your own child sessions using the run_child_session tool " +
+            "if your task requires delegating work to other specialized roles.",
+        ),
+      );
     } else {
-      sections.push(formatSection(
-        "Session Management",
-        "You can create child sessions to handle specialized subtasks using the " +
-        "run_child_session tool. Child sessions will execute in parallel and report " +
-        "back when complete. This is useful for delegating tasks that require different " +
-        "expertise or system prompts than your current role. Child sessions can also " +
-        "create their own child sessions if needed for complex tasks."
-      ));
+      sections.push(
+        formatSection(
+          "Session Management",
+          "You can create child sessions to handle specialized subtasks using the " +
+            "run_child_session tool. Child sessions will execute in parallel and report " +
+            "back when complete. This is useful for delegating tasks that require different " +
+            "expertise or system prompts than your current role. Child sessions can also " +
+            "create their own child sessions if needed for complex tasks.",
+        ),
+      );
     }
 
     // Add available roles section so the model knows what roles can be used
@@ -105,12 +113,6 @@ export class SystemPromptEnhancer {
     // Add tool usage section
     sections.push(buildToolUsageSection());
     sections.push(buildToolUseGuidelinesSection());
-
-    // Add internal tools section if available
-    const internalToolsSection = this.buildInternalToolsSection();
-    if (internalToolsSection) {
-      sections.push(internalToolsSection);
-    }
 
     // Add available MCP tools section
     sections.push(this.buildAvailableToolsSection());
@@ -142,50 +144,34 @@ export class SystemPromptEnhancer {
   }
 
   /**
-   * Build internal tools section
-   */
-  private buildInternalToolsSection(): string {
-    if (!this.internalToolsManager) {
-      return "";
-    }
-    
-    const tools = this.internalToolsManager.getToolsDocumentation();
-    if (tools.length === 0) {
-      return "";
-    }
-    
-    const toolDocs = tools
-      .map(tool => this.formatInternalToolDocumentation(tool))
-      .join("\n\n");
-    
-    return formatSection("Internal Tools", toolDocs);
-  }
-
-  /**
    * Build available roles section
    */
   private buildAvailableRolesSection(): string {
     if (!this.roleConfigLoader) {
       return "";
     }
-    
+
     try {
       const rolesList = this.roleConfigLoader.getAllRoles();
       if (rolesList.length === 0) {
         return "";
       }
-      
+
       // Get each role's brief definition to include in the list
-      const rolesContent = rolesList.map(roleName => {
-        const role = this.roleConfigLoader?.getRole(roleName);
-        // Extract first line or sentence of the definition as a brief description
-        const briefDescription = role?.definition.split('.')[0] || "No description available";
-        return `- **${roleName}**: ${briefDescription}.`;
-      }).join("\n\n");
-      
-      return formatSection("Available Roles",
+      const rolesContent = rolesList
+        .map((roleName) => {
+          const role = this.roleConfigLoader?.getRole(roleName);
+          // Extract first line or sentence of the definition as a brief description
+          const briefDescription =
+            role?.definition.split(".")[0] || "No description available";
+          return `- **${roleName}**: ${briefDescription}.`;
+        })
+        .join("\n\n");
+
+      return formatSection(
+        "Available Roles",
         "The following roles are available for creating child sessions using the run_child_session tool:\n\n" +
-        rolesContent
+          rolesContent,
       );
     } catch (error) {
       // If there's an error getting roles, return empty string
@@ -237,7 +223,9 @@ export class SystemPromptEnhancer {
   /**
    * Format internal tool documentation
    */
-  private formatInternalToolDocumentation(doc: InternalToolDocumentation): string {
+  private formatInternalToolDocumentation(
+    doc: InternalToolDocumentation,
+  ): string {
     let content = `### ${doc.name}\n\n`;
 
     // Add description

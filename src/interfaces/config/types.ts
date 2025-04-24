@@ -11,7 +11,7 @@ import { McpServerConfig } from "../../services/config/mcp-schema.ts";
 
 export type LogLevelStrings = keyof typeof LogLevel;
 
-export interface RoleConfig {
+export interface RoleConfig {  
   definition: string;
   instructions: string;
   availableServers: string[];

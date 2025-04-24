@@ -18,10 +18,9 @@ import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 import { ILLMProvider } from "../../interfaces/llm/provider.ts";
 import { findConfigFileSync } from "../config/config-utils.ts";
 import { logger } from "../logger/index.ts";
-import { InternalToolsManager } from "../tools/internal-tools-manager.ts";
+
 import { ToolHandler } from "../tools/tool-handler.ts";
 import { MessageManager } from "./message-manager.ts";
-import { RoleManager } from "./role-manager.ts";
 import { SessionHierarchyManager } from "./session-hierarchy.ts";
 import { SessionStorage } from "./session-storage.ts";
 
@@ -33,40 +32,34 @@ export interface SessionManagerOptions {
   config: MCPilotConfig;
   /** LLM provider instance */
   provider: ILLMProvider;
-  /** Path to roles configuration file */
-  rolesConfigPath?: string;
   /** Working directory for the session */
   workingDirectory?: string;
   /** Whether to auto-approve tool calls */
   autoApproveTools?: boolean;
-  /** Path to a specific role file */
-  roleFilePath?: string;
+  toolHandler: ToolHandler;
 }
 
 export class SessionManager {
   #sessions: Record<string, Session> = {};
-  private roleManager!: RoleManager;
-  private internalToolsManager!: InternalToolsManager;
-  private toolHandler!: ToolHandler;
+
+  private toolHandler: ToolHandler;
   private sessionStorage!: SessionStorage;
   private sessionHierarchyManager!: SessionHierarchyManager;
   private messageManager!: MessageManager;
 
+  private initialized = false;
+
   constructor(options: SessionManagerOptions) {
     this.config = options.config;
     this.provider = options.provider;
-    this.rolesConfigPath = options.rolesConfigPath;
+    this.toolHandler = options.toolHandler;
     this.workingDirectory = options.workingDirectory || process.cwd();
-    this.autoApproveTools = options.autoApproveTools || false;
-    this.roleFilePath = options.roleFilePath;
   }
 
   private readonly config: MCPilotConfig;
   private readonly provider: ILLMProvider;
-  private readonly rolesConfigPath?: string;
+
   private readonly workingDirectory: string;
-  private readonly autoApproveTools: boolean;
-  private readonly roleFilePath?: string;
 
   // PUBLIC METHODS
 
@@ -74,17 +67,19 @@ export class SessionManager {
    * Initialize session manager components
    */
   private async init(): Promise<void> {
+    if (this.initialized) return;
+
     this.initializeHelpers();
-    await this.roleManager.initialize(this.internalToolsManager);
+    this.initialized = true;
   }
 
   /**
    * Create a new session
    */
-  public async createSession(role?: string): Promise<Session> {
+  public async createSession(systemPrompt: string): Promise<Session> {
     const newSession = {
       id: uuidv4(),
-      systemPrompt: "",
+      systemPrompt,
       messages: [],
       metadata: this.createDefaultMetadata(),
       // New properties for session hierarchy
@@ -95,11 +90,6 @@ export class SessionManager {
     this.#sessions[newSession.id] = newSession;
 
     await this.init();
-
-    const roleConfig = await this.roleManager.getRoleConfig(role);
-    if (roleConfig) {
-      await this.setupRoleContext(newSession.id, roleConfig, role);
-    }
 
     // Save session and log paths
     const mcpilotDir = this.sessionStorage.findMcpilotDir();
@@ -125,32 +115,6 @@ export class SessionManager {
 
     this.sessionStorage.saveSessionToFile(newSession);
     return newSession;
-  }
-
-  /**
-   * Create a child session linked to a parent
-   */
-  public async createChildSession(
-    parentId: string,
-    role: string,
-    initialPrompt: string,
-  ): Promise<Session> {
-    return this.sessionHierarchyManager.createChildSession(
-      parentId,
-      role,
-      initialPrompt,
-      (role?: string) => this.createSession(role),
-    );
-  }
-
-  /**
-   * Complete a child session and send results to parent
-   */
-  public async completeChildSession(
-    sessionId: string,
-    summary: string,
-  ): Promise<void> {
-    await this.sessionHierarchyManager.completeChildSession(sessionId, summary);
   }
 
   /**
@@ -240,19 +204,10 @@ export class SessionManager {
    */
   private initializeHelpers(): void {
     this.sessionStorage = new SessionStorage(this.workingDirectory);
-    this.internalToolsManager = new InternalToolsManager(this);
+
     this.messageManager = new MessageManager({
       updateSession: (sessionId, sessionData) =>
         this.updateSession(sessionId, sessionData),
-    });
-
-    // Create RoleManager
-    this.roleManager = new RoleManager({
-      rolesConfigPath: this.rolesConfigPath,
-      workingDirectory: this.workingDirectory,
-      roleFilePath: this.roleFilePath,
-      mcpServers: this.config.mcp?.servers || {},
-      autoApproveTools: this.autoApproveTools,
     });
 
     // ToolHandler will be initialized after RoleManager is initialized
@@ -285,41 +240,6 @@ export class SessionManager {
   }
 
   /**
-   * Set up role-specific context
-   */
-  private async setupRoleContext(
-    sessionId: string,
-    roleConfig: RoleConfig,
-    roleName?: string,
-  ): Promise<void> {
-    // Determine if this is a child session
-    const isChildSession = !!this.#sessions[sessionId].parentId;
-
-    // Use RoleManager to set up role context and get system prompt
-    const systemPrompt = await this.roleManager.setupRoleContext(
-      roleConfig,
-      roleName,
-      isChildSession,
-    );
-
-    // Initialize ToolHandler after RoleManager is initialized
-    this.toolHandler = new ToolHandler({
-      mcpHub: this.roleManager.getMcpHub(),
-      internalToolsManager: this.internalToolsManager,
-    });
-
-    // Update session with the new system prompt
-    this.updateSession(sessionId, {
-      systemPrompt,
-      metadata: {
-        ...this.#sessions[sessionId].metadata,
-        role: roleConfig,
-        roleName: roleName,
-      },
-    });
-  }
-
-  /**
    * Process a message with potential tool requests
    */
   private async processMessageWithTools(sessionId: string): Promise<Response> {
@@ -328,8 +248,6 @@ export class SessionManager {
       const response = await this.provider.processMessage(
         this.#sessions[sessionId],
       );
-
-      logger.debug(`Response: ${response.id}`);
 
       // Check for tool requests in response
       if (!response.content.text) {

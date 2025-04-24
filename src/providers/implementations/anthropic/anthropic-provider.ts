@@ -100,7 +100,8 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
 
             // Keep track of newline when streaming the text - just for formatting
             hasNewLine = processedChunk.text.endsWith("\n");
-          } else if (processedChunk?.type === "message_stop") {
+          } else if (processedChunk.type === "message_stop") {
+            logger.info("* Message stop received");
             break;
           }
           yield processedChunk;
@@ -174,13 +175,6 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
             textBlock.text,
           );
         }
-      }
-
-      if (response.thinkingScope) {
-        logger.info(`Thought:\n${response.thinkingScope}`);
-      }
-      if (response.userInteraction) {
-        logger.info(`User question:\n${response.userInteraction}`);
       }
 
       return response;
@@ -433,7 +427,6 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
         };
 
       case "text":
-        logger.debug(chunk.content_block.text);
         return {
           type: "text",
           text: chunk.content_block.text,

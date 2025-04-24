@@ -4,20 +4,30 @@
 
 import { Message, MessageType } from "../../interfaces/base/message.ts";
 import { Session, SessionStatus } from "../../interfaces/base/session.ts";
+import { RoleConfig } from "../../interfaces/config/types.ts";
 import { SessionStorage } from "./session-storage.ts";
 
 export interface SessionHierarchyManagerOptions {
   getSession: (sessionId: string) => Session;
   updateSession: (sessionId: string, sessionData: Partial<Session>) => void;
-  executeMessage: (sessionId: string, message: string | Message) => Promise<any>;
+  executeMessage: (
+    sessionId: string,
+    message: string | Message,
+  ) => Promise<any>;
   sessionStorage: SessionStorage;
   generateMessageId: () => string;
 }
 
 export class SessionHierarchyManager {
   private getSession: (sessionId: string) => Session;
-  private updateSession: (sessionId: string, sessionData: Partial<Session>) => void;
-  private executeMessage: (sessionId: string, message: string | Message) => Promise<any>;
+  private updateSession: (
+    sessionId: string,
+    sessionData: Partial<Session>,
+  ) => void;
+  private executeMessage: (
+    sessionId: string,
+    message: string | Message,
+  ) => Promise<any>;
   private sessionStorage: SessionStorage;
   private generateMessageId: () => string;
 
@@ -34,16 +44,16 @@ export class SessionHierarchyManager {
    */
   public async createChildSession(
     parentId: string,
-    role: string,
+    roleConfig: RoleConfig,
     initialPrompt: string,
-    createSession: (role?: string) => Promise<Session>
+    createSession: (roleConfig?: RoleConfig) => Promise<Session>,
   ): Promise<Session> {
     // Create a new session
-    const childSession = await createSession(role);
+    const childSession = await createSession(roleConfig);
 
     // Link child to parent
     this.updateSession(childSession.id, {
-      parentId: parentId
+      parentId: parentId,
     });
 
     // Add child ID to parent's child list

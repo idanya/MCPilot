@@ -66,7 +66,7 @@ export class RoleConfigLoader {
     }
   }
 
-  public getRole(name: string): RoleConfig | undefined {
+  public getRole(name: string): RoleConfig {
     return this.config.roles[name];
   }
 

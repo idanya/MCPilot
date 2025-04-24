@@ -8,11 +8,9 @@ import { ErrorSeverity, MCPilotError } from "../../interfaces/error/types.ts";
 import { McpServerConfig } from "../config/mcp-schema.ts";
 import { RoleConfigLoader } from "../config/role-config-loader.ts";
 import { validateRolesConfig } from "../config/role-schema.ts";
-import { logger } from "../logger/index.ts";
 import { McpHub } from "../mcp/mcp-hub.ts";
 import { ToolCatalogBuilder } from "../mcp/tool-catalog.ts";
 import { SystemPromptEnhancer } from "../prompt/prompt-enhancer.ts";
-import { InternalToolsManager } from "../tools/internal-tools-manager.ts";
 
 export interface RoleManagerOptions {
   /** Path to roles configuration file */
@@ -49,16 +47,13 @@ export class RoleManager {
   /**
    * Initialize the role manager
    */
-  public async initialize(
-    internalToolsManager?: InternalToolsManager,
-  ): Promise<void> {
+  public async initialize(): Promise<void> {
     await this.createMcpHub();
     await this.loadRoleConfiguration();
 
     this.promptEnhancer = new SystemPromptEnhancer(
       this.mcpHub.getToolCatalog(),
-      this.workingDirectory,
-      internalToolsManager,
+      this.workingDirectory,      
       this.roleLoader,
     );
   }
@@ -87,7 +82,7 @@ export class RoleManager {
   /**
    * Get role configuration
    */
-  public async getRoleConfig(role?: string): Promise<RoleConfig | undefined> {
+  public async getRoleConfig(role: string): Promise<RoleConfig> {
     // If roleFilePath is specified, load the role from that file directly
     if (this.roleFilePath) {
       try {
@@ -121,34 +116,18 @@ export class RoleManager {
       }
     }
 
-    // Otherwise use the standard role loading mechanism
-    let roleConfig: RoleConfig | undefined;
-    if (role) {
-      roleConfig = this.roleLoader.getRole(role);
-      if (!roleConfig) {
-        throw new MCPilotError(
-          `Role '${role}' not found`,
-          "INVALID_ROLE",
-          ErrorSeverity.HIGH,
-        );
-      }
-    }
-    return roleConfig;
+    return this.roleLoader.getRole(role);
   }
 
   /**
    * Set up role-specific context
    */
-  public async setupRoleContext(
+  public async generateRoleSystemPrompt(
     roleConfig: RoleConfig,
-    roleName?: string,
     isChildSession: boolean = false,
   ): Promise<string> {
     // Reinitialize MCP hub with role-specific servers
     await this.createMcpHub(roleConfig);
-
-    // Log role information
-    logger.info(`Setting up role context: ${roleName || "unknown"}`);
 
     // Build enhanced system prompt
     if (roleConfig) {
