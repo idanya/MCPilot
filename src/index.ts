@@ -2,9 +2,14 @@
  * Main entry point for MCPilot
  */
 
-export { LogLevel, SessionManager } from "./services/session/index.ts";
+export {
+  LogLevel,
+  SessionManager,
+  RoleManager,
+} from "./services/session/index.ts";
 
 export type { SessionState } from "./interfaces/base/state.ts";
+export type { ResponseContent } from "./interfaces/base/response.ts";
 
 export type {
   Message,
@@ -45,3 +50,10 @@ export type {
 } from "./providers/provider-config.ts";
 
 export { ConfigLoader } from "./services/config/config-loader.ts";
+
+// Tool system
+export { ToolHandler } from "./services/tools/tool-handler.ts";
+
+// Role and MCP Configuration
+export type { RoleConfig } from "./interfaces/config/types.ts";
+export type { McpServerConfig } from "./services/config/mcp-schema.ts";
