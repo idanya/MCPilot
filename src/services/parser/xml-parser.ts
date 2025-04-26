@@ -3,6 +3,7 @@
  */
 
 import { logger } from "../logger/index.ts";
+import { ParsedInternalToolRequest } from "../../interfaces/tools/internal-tool.ts";
 
 export interface XmlNode {
   tag: string;
@@ -34,6 +35,33 @@ export class XmlParser {
       } catch (error) {
         if (error instanceof XmlParseError) {
           logger.warn(`Skipping invalid tool request: ${error.message}`);
+        } else {
+          throw error;
+        }
+      }
+    }
+
+    return requests;
+  }
+
+  /**
+   * Parse XML-style internal tool requests from text
+   */
+  public parseInternalToolRequests(text: string): ParsedInternalToolRequest[] {
+    const requests: ParsedInternalToolRequest[] = [];
+    const pattern = /(<use_tool>[\s\S]*?<\/use_tool>)/g;
+    let match;
+
+    while ((match = pattern.exec(text)) !== null) {
+      const [, fullMatch] = match;
+      try {
+        const request = this.parseInternalToolRequest(fullMatch);
+        requests.push(request);
+      } catch (error) {
+        if (error instanceof XmlParseError) {
+          logger.warn(
+            `Skipping invalid internal tool request: ${error.message}`,
+          );
         } else {
           throw error;
         }
@@ -86,6 +114,35 @@ export class XmlParser {
     };
 
     this.validateToolRequest(request);
+    return request;
+  }
+
+  /**
+   * Parse single internal tool request
+   */
+  private parseInternalToolRequest(text: string): ParsedInternalToolRequest {
+    const toolMatch = /<use_tool>([\s\S]*?)<\/use_tool>/g.exec(text);
+    if (!toolMatch) {
+      throw new XmlParseError("Invalid internal tool request format");
+    }
+
+    const [, content] = toolMatch;
+    const params = this.parseParameters(content);
+
+    // Validate required parameters
+    if (!params.tool_name) {
+      throw new XmlParseError("Missing tool_name in internal tool request");
+    }
+    if (!params.parameters) {
+      throw new XmlParseError("Missing parameters in internal tool request");
+    }
+
+    const request: ParsedInternalToolRequest = {
+      toolName: params.tool_name,
+      parameters: params.parameters,
+      raw: text,
+    };
+
     return request;
   }
 

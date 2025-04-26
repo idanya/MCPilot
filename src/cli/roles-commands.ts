@@ -133,6 +133,7 @@ export async function handleRolesCreate(configPath?: string): Promise<void> {
     rolesConfig.roles[roleName] = {
       definition,
       instructions,
+      availableServers: [],
     };
 
     // Set as default if requested

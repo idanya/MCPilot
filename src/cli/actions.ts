@@ -6,9 +6,11 @@ import {
   ProviderType,
 } from "../providers/index.ts";
 import { ConfigLoader } from "../services/config/config-loader.ts";
-import { SessionManager } from "../services/session/index.ts";
+import { RoleManager, SessionManager } from "../services/session/index.ts";
 import { MCPilotCLIOptions } from "./types.ts";
 import { createLogger, logger } from "../services/logger/index.ts";
+
+import { ToolHandler } from "../services/tools/tool-handler.ts";
 
 export async function handleError(error: any) {
   if (error instanceof MCPilotError) {
@@ -41,20 +43,42 @@ export async function handleStart(
   const config = await createConfig(options);
   const provider = await createProvider(providerFactory, config, options);
 
+  const roleManager = new RoleManager({
+    rolesConfigPath: options.rolesConfig,
+    workingDirectory: options.workingDirectory || process.cwd(),
+    roleFilePath: options.roleFile || undefined,
+    mcpServers: config.mcp?.servers || {},
+    autoApproveTools: options.autoApproveTools || false,
+  });
+
+  await roleManager.initialize();
+
+  const toolHandler = new ToolHandler({
+    mcpHub: roleManager.getMcpHub(),
+  });
+
   // Initialize session manager with config and roles
-  const sessionManager = new SessionManager(
+  const sessionManager = new SessionManager({
     config,
     provider,
-    options.rolesConfig,
-    options.workingDirectory,
-    options.autoApproveTools,
-    options.roleFile,
-  );
+    workingDirectory: options.workingDirectory,
+    autoApproveTools: options.autoApproveTools,
+    toolHandler,
+  });
 
-  await sessionManager.createSession(options.role);
+  let systemPrompt = "";
+  await roleManager.initialize();
+  if (options.role) {
+    systemPrompt = await roleManager.generateRoleSystemPrompt(
+      await roleManager.getRoleConfig(options.role),
+      false,
+    );
+  }
+
+  const session = await sessionManager.createSession(systemPrompt);
   logger.info("Session started successfully");
 
-  await sessionManager.executeMessage(instruction);
+  await sessionManager.executeMessage(session.id, instruction);
   process.exit(0);
 }
 
@@ -71,18 +95,29 @@ export async function handleResume(
   const config = await createConfig(options);
   const provider = await createProvider(providerFactory, config, options);
 
-  const sessionManager = new SessionManager(
+  const roleManager = new RoleManager({
+    rolesConfigPath: options.rolesConfig,
+    workingDirectory: options.workingDirectory || process.cwd(),
+    roleFilePath: options.roleFile || undefined,
+    mcpServers: config.mcp?.servers || {},
+    autoApproveTools: options.autoApproveTools || false,
+  });
+
+  const toolHandler = new ToolHandler({
+    mcpHub: roleManager.getMcpHub(),
+  });
+
+  const sessionManager = new SessionManager({
     config,
     provider,
-    options.rolesConfig,
-    options.workingDirectory,
-    options.autoApproveTools,
-    options.roleFile,
-  );
+    workingDirectory: options.workingDirectory,
+    autoApproveTools: options.autoApproveTools,
+    toolHandler,
+  });
 
-  await sessionManager.resumeSession(logPath);
+  const session = await sessionManager.resumeSession(logPath);
   logger.info("Session resumed successfully");
-  await sessionManager.executeMessage(instruction);
+  await sessionManager.executeMessage(session.id, instruction);
   process.exit(0);
 }
 

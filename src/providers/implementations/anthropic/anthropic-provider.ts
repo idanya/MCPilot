@@ -100,7 +100,8 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
 
             // Keep track of newline when streaming the text - just for formatting
             hasNewLine = processedChunk.text.endsWith("\n");
-          } else if (processedChunk?.type === "message_stop") {
+          } else if (processedChunk.type === "message_stop") {
+            logger.info("* Message stop received");
             break;
           }
           yield processedChunk;
@@ -152,6 +153,7 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
       const response: AnthropicResponse = {
         content: [textBlock],
         id: "",
+        thinkingScope: undefined,
         model: "",
         usage: {
           input_tokens: 0,
@@ -161,17 +163,18 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
 
       const stream = this.sendStreamedRequest(session);
       const allChunks = await arrayFromAsyncGenerator(stream);
-      let thinkingScope: string | undefined = undefined;
 
       for (const chunk of allChunks) {
         this.updateResponseFromChunk(response, textBlock, chunk);
-        if (!thinkingScope) {
-          thinkingScope = this.extractThinkingContent(textBlock.text);
+        if (!response.thinkingScope) {
+          response.thinkingScope = this.extractThinkingContent(textBlock.text);
         }
-      }
 
-      if (thinkingScope) {
-        logger.info(`Thought:\n${thinkingScope}`);
+        if (!response.userInteraction) {
+          response.userInteraction = this.extractUserInteractionContext(
+            textBlock.text,
+          );
+        }
       }
 
       return response;
@@ -190,6 +193,13 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
     return thinkingMatch ? thinkingMatch[1].trim() : undefined;
   }
 
+  private extractUserInteractionContext(text: string): string | undefined {
+    const userInteraction = text.match(
+      /<user_interaction>([\s\S]*?)<\/user_interaction>/,
+    );
+    return userInteraction ? userInteraction[1].trim() : undefined;
+  }
+
   protected async parseResponse(
     response: AnthropicResponse,
   ): Promise<Response> {
@@ -200,6 +210,8 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
       type: ResponseType.TEXT,
       content: {
         text: stringResponse,
+        thinkingScope: response.thinkingScope,
+        userInteraction: response.userInteraction,
       },
       metadata: {
         model: response.model,
@@ -415,7 +427,6 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
         };
 
       case "text":
-        logger.debug(chunk.content_block.text);
         return {
           type: "text",
           text: chunk.content_block.text,
