@@ -1,9 +1,9 @@
 {
   "name": "mcpilot",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "General-purpose system that executes tasks using MCP tooling through prompt-based interactions",
   "type": "module",
-  "main": "dist/index.js",    
+  "main": "dist/index.js",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -22,7 +22,7 @@
     "test": "jest --passWithNoTests",
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\""
-  }, 
+  },
   "bin": {
     "mcpilot": "./dist/cli/index.js"
   },
