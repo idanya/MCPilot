@@ -61,7 +61,10 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
    * Sends a request to Anthropic and returns the response as a stream
    * @param session The conversation session
    */
-  async *sendStreamedRequest(session: Session): ApiStream {
+  async *sendStreamedRequest(
+    session: Session,
+    signal?: AbortSignal,
+  ): ApiStream {
     let attempt = 0;
     let lastError: any;
 
@@ -79,15 +82,18 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
           })`,
         );
 
-        const streamResponse = await this.client.messages.create({
-          messages: options.messages,
-          model: options.model,
-          max_tokens: options.max_tokens,
-          ...thinkingProperty,
-          stream: true,
-          system: options.system,
-          temperature: options.temperature || 1,
-        });
+        const streamResponse = await this.client.messages.create(
+          {
+            messages: options.messages,
+            model: options.model,
+            max_tokens: options.max_tokens,
+            ...thinkingProperty,
+            stream: true,
+            system: options.system,
+            temperature: options.temperature || 1,
+          },
+          { signal },
+        );
 
         let hasNewLine = true;
         for await (const chunk of streamResponse) {
@@ -161,8 +167,19 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
         },
       };
 
-      const stream = this.sendStreamedRequest(session);
-      const allChunks = await arrayFromAsyncGenerator(stream);
+      const abortController = new AbortController();
+      const stream = this.sendStreamedRequest(session, abortController.signal);
+      const allChunks = await arrayFromAsyncGenerator(stream, (items) => {
+        const allText = items
+          .filter((t) => t.type === "text")
+          .reduce((acc, item) => acc + item.text, "");
+
+        const toolUse = this.extractMcpToolUse(allText);
+        if (toolUse) {
+          abortController.abort();
+        }
+        return false;
+      });
 
       for (const chunk of allChunks) {
         this.updateResponseFromChunk(response, textBlock, chunk);
@@ -191,6 +208,11 @@ export class AnthropicProvider extends BaseProvider<AnthropicConfig> {
   private extractThinkingContent(text: string): string | undefined {
     const thinkingMatch = text.match(/<thinking>([\s\S]*?)<\/thinking>/);
     return thinkingMatch ? thinkingMatch[1].trim() : undefined;
+  }
+
+  private extractMcpToolUse(text: string): string | undefined {
+    const mcpToolMatch = text.match(/<use_mcp_tool>([\s\S]*?)<\/use_mcp_tool>/);
+    return mcpToolMatch ? mcpToolMatch[1].trim() : undefined;
   }
 
   private extractUserInteractionContext(text: string): string | undefined {

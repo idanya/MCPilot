@@ -29,7 +29,7 @@ export interface AnthropicCacheMessage {
 export interface AnthropicResponse {
   id: string;
   content: Array<ContentBlock>;
-  thinkingScope?: string;
+  thinkingScope?: string;  
   userInteraction?: string;
   model: string;
   usage: {

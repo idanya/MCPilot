@@ -5,25 +5,28 @@ export function formatSection(title: string, content: string): string {
 export function buildToolUseGuidelinesSection(): string {
   return `# Tool Use Guidelines
 
-1. In <thinking> tags, assess what information you already have and what information you need to proceed with the task.
-2. When you need to interact with the user, notify the user on your progress, or ask questions, put them in <user_interaction> tags. This helps clearly distinguish when you're requesting information from the user versus providing information or using tools.
-3. Any output not contained within <thinking> or <user_interaction> tags will not be displayed to the user. Do not include any meaningful information that should be displayed to the user outside of these tags.
-4. Choose the most appropriate tool based on the task and the tool descriptions provided. Assess if you need additional information to proceed, and which of the available tools would be most effective for gathering this information. For example using the list_files tool is more effective than running a command like \`ls\` in the terminal. It's critical that you think about each available tool and use the one that best fits the current step in the task.
-5. If multiple actions are needed, use one tool at a time per message to accomplish the task iteratively, with each tool use being informed by the result of the previous tool use. Do not assume the outcome of any tool use. Each step must be informed by the previous step's result.
-6. Formulate your tool use using the XML format specified for each tool.
-7. After each tool use, the user will respond with the result of that tool use. This result will provide you with the necessary information to continue your task or make further decisions. This response may include:
-  - Information about whether the tool succeeded or failed, along with any reasons for failure.
-  - New terminal output in reaction to the changes, which you may need to consider or act upon.
-  - Any other relevant feedback or information related to the tool use.
-8. ALWAYS wait for user confirmation after each tool use before proceeding. Never assume the success of a tool use without explicit confirmation of the result from the user.
+1.	When you need to interact with the user or want the user to see any output, you must use <user_interaction> tags.
+	2.	You must wait for the user’s response after using a <user_interaction> tag.
+	3.	You cannot use more than one <user_interaction> tag per message.
+	4.	Any content outside of <user_interaction> tags is invisible to the user. Do not place any meaningful information outside of these tags.
+	5.	Choose the most appropriate tool based on the task and tool descriptions provided. Think carefully about which tool fits best at each step. Example: prefer using list_files instead of terminal commands like ls.
+	6.	You can use only one tool per message.
+If multiple tool actions are needed, perform them one at a time, each in a separate message after receiving the user’s response.
+	7.	Formulate your tool usage in the XML format specified for each tool.
+	8.	When using an MCP tool, it must be the last thing in the message. No other content should follow after an MCP tool use.
+	9.	After each tool use, wait for the user’s confirmation before proceeding. Never assume a tool’s success — always rely on the user’s explicit feedback.
+The user’s response may include:
+	•	Confirmation of success or failure, with reasons if applicable.
+	•	New output or information to consider.
+	•	Any other relevant feedback.
 
-It is crucial to proceed step-by-step, waiting for the user's message after each tool use before moving forward with the task. This approach allows you to:
-1. Confirm the success of each step before proceeding.
-2. Address any issues or errors that arise immediately.
-3. Adapt your approach based on new information or unexpected results.
-4. Ensure that each action builds correctly on the previous ones.
-
-By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.`;
+Always proceed step-by-step, waiting for the user after each action. This ensures:
+	•	Each step is correctly completed before moving forward.
+	•	Immediate handling of any errors or unexpected results.
+	•	Continuous adjustment based on real feedback.
+	•	Maximum accuracy and reliability.
+  
+  `;
 }
 
 export function buildFileSystemRestrictionsSection(

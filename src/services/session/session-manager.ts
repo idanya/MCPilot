@@ -303,6 +303,7 @@ export class SessionManager {
     message: string,
     details?: any,
   ): Response {
+    logger.error(`Error: ${message}`, details);
     return {
       id: this.messageManager.generateMessageId(),
       type: ResponseType.ERROR,
