@@ -16,10 +16,14 @@
  */
 export async function arrayFromAsyncGenerator<T>(
   generator: AsyncIterable<T>,
+  stopPredicate: (items: T[]) => boolean = () => false,
 ): Promise<T[]> {
   const result: T[] = [];
   for await (const item of generator) {
     result.push(item);
+    if (stopPredicate && stopPredicate(result)) {
+      break;
+    }
   }
   return result;
 }

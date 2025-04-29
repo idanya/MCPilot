@@ -10,7 +10,7 @@ export interface Message {
   metadata?: MessageMetadata;
 }
 
-export enum MessageType {
+export enum MessageType { 
   USER = "user",
   ASSISTANT = "assistant",
   SYSTEM = "system",
